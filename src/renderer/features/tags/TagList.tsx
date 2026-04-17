@@ -3,15 +3,16 @@ import { Hash } from 'lucide-react'
 interface TagListProps {
   tags: Array<{ name: string; count: number }>
   activeTag: string | null
+  allTagsActive: boolean
   onSelectTag: (tag: string | null) => void
 }
 
-export function TagList({ tags, activeTag, onSelectTag }: TagListProps) {
+export function TagList({ tags, activeTag, allTagsActive, onSelectTag }: TagListProps) {
   return (
     <div className="space-y-1">
       <button
         className={`w-full rounded-md border px-2.5 py-1.5 text-left text-sm transition-colors ${
-          activeTag === null
+          allTagsActive
             ? 'border-accent/10 bg-accent/10 text-text'
             : 'border-line/20 text-muted hover:border-line/20 hover:bg-surface2'
         }`}

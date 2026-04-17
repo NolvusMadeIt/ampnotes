@@ -152,8 +152,11 @@ export default function Routes() {
     if (nav === 'settings') {
       return 'Settings'
     }
+    if (nav === 'all' && activeTag) {
+      return `Tagged #${activeTag}`
+    }
     return NAV_ITEMS.find((item) => item.id === nav)?.label ?? 'All Pages'
-  }, [nav])
+  }, [activeTag, nav])
 
   const selectedPrompt = useMemo(
     () => prompts.find((prompt) => prompt.id === selectedPromptId) ?? null,
@@ -269,11 +272,47 @@ export default function Routes() {
   const openStaticPage = useCallback(
     (section: 'about' | 'tos') => {
       setContextMenu(null)
+      setActiveTag(null)
       setNav(section)
       setSelectedPromptId(null)
       setPromptDetailMode('home')
     },
-    [setNav, setSelectedPromptId]
+    [setActiveTag, setNav, setSelectedPromptId]
+  )
+
+  const handleSelectNav = useCallback(
+    (section: NavSection) => {
+      setContextMenu(null)
+      setActiveTag(null)
+      setNav(section)
+      setSelectedPromptId(null)
+
+      if (
+        section === 'all' ||
+        section === 'templates' ||
+        section === 'settings' ||
+        section === 'pluginSettings' ||
+        section === 'themeSettings'
+      ) {
+        setPromptDetailMode('home')
+        return
+      }
+
+      setPromptDetailMode('read')
+    },
+    [setActiveTag, setNav, setSelectedPromptId]
+  )
+
+  const handleSelectTag = useCallback(
+    (tagName: string | null) => {
+      setContextMenu(null)
+      setSearch('')
+      setActiveTag(tagName)
+      setNav('all')
+      setSelectedPromptId(null)
+      setPromptDetailMode('home')
+    },
+    [setActiveTag, setNav, setSearch, setSelectedPromptId]
   )
 
   const refreshAuth = useCallback(async () => {
@@ -460,6 +499,7 @@ export default function Routes() {
     try {
       const created = await api.prompt.create(profile.id, input)
 
+      setActiveTag(null)
       setNav('all')
       await refreshWorkspace()
       setSelectedPromptId(created.id)
@@ -470,7 +510,7 @@ export default function Routes() {
       const message = error instanceof Error ? error.message : 'Failed to create prompt'
       flashToast(message)
     }
-  }, [flashToast, profile, refreshWorkspace, setNav, setSelectedPromptId])
+  }, [flashToast, profile, refreshWorkspace, setActiveTag, setNav, setSelectedPromptId])
 
   const handleRefineDraft = useCallback(async (content: string) => {
     if (!profile) {
@@ -587,13 +627,14 @@ export default function Routes() {
         tags: template.tags
       })
 
+      setActiveTag(null)
       setNav('all')
       await refreshWorkspace()
       setSelectedPromptId(created.id)
       setPromptDetailMode('home')
       flashToast('Template added as prompt')
     },
-    [flashToast, profile, refreshWorkspace]
+    [flashToast, profile, refreshWorkspace, setActiveTag, setNav, setSelectedPromptId]
   )
 
   const handleAddPromptAsTemplate = useCallback(
@@ -963,35 +1004,14 @@ export default function Routes() {
             <nav className="space-y-1">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon
+                const isActiveNav = nav === item.id && !(item.id === 'all' && activeTag)
                 return (
                   <button
                     key={item.id}
                     className={`inline-flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                      nav === item.id ? 'bg-surface2 text-text' : 'text-muted hover:bg-surface2'
+                      isActiveNav ? 'bg-surface2 text-text' : 'text-muted hover:bg-surface2'
                     }`}
-                    onClick={() => {
-                      setNav(item.id)
-                      if (item.id === 'all') {
-                        if (prompts.length > 0) {
-                          setSelectedPromptId(prompts[0].id)
-                        } else {
-                          setSelectedPromptId(null)
-                        }
-                        setPromptDetailMode('home')
-                        return
-                      }
-                      if (
-                        item.id === 'templates' ||
-                        item.id === 'settings' ||
-                        item.id === 'pluginSettings' ||
-                        item.id === 'themeSettings'
-                      ) {
-                        setSelectedPromptId(null)
-                        setPromptDetailMode('home')
-                        return
-                      }
-                      setPromptDetailMode('read')
-                    }}
+                    onClick={() => handleSelectNav(item.id)}
                     title={item.label}
                   >
                     <Icon size={sidebarCollapsed ? 19 : 14} className={sidebarCollapsed ? '' : 'mr-2'} />
@@ -1008,7 +1028,12 @@ export default function Routes() {
                     <Tag size={12} />
                     Tags
                   </p>
-                  <TagList tags={tags} activeTag={activeTag} onSelectTag={setActiveTag} />
+                  <TagList
+                    tags={tags}
+                    activeTag={activeTag}
+                    allTagsActive={nav === 'all' && activeTag === null}
+                    onSelectTag={handleSelectTag}
+                  />
                 </div>
               </div>
             )}
@@ -1038,10 +1063,7 @@ export default function Routes() {
                     : 'w-full [justify-content:flex-start] text-left border-line/20 hover:border-line/20'
                 }
                 onClick={() => {
-                  setContextMenu(null)
-                  setNav('settings')
-                  setSelectedPromptId(null)
-                  setPromptDetailMode('home')
+                  handleSelectNav('settings')
                 }}
                 title="Settings"
               >
@@ -1282,7 +1304,7 @@ export default function Routes() {
         }}
         onConfigureRefine={() => {
           setNewPromptOpen(false)
-          setNav('settings')
+          handleSelectNav('settings')
           flashToast('Add your Groq API key, then run Improve Draft.')
         }}
         onCreate={handleCreatePromptFromDraft}
