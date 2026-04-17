@@ -86,19 +86,117 @@ const PRESET_OPTIONS: Array<{ value: ThemePresetOption; label: string }> = [
   { value: 'sand', label: 'Sand' }
 ]
 
-const THEME_BUILDER_FIELDS = [
-  ['--bg', 'Background'],
-  ['--surface', 'Card'],
-  ['--surface-2', 'Popover'],
-  ['--text', 'Foreground'],
-  ['--text-muted', 'Muted'],
-  ['--border', 'Border'],
-  ['--accent', 'Accent'],
-  ['--accent-contrast', 'Accent Foreground'],
-  ['--success', 'Success'],
-  ['--warning', 'Warning'],
-  ['--danger', 'Danger']
+type ThemeBuilderToken =
+  | '--bg'
+  | '--surface'
+  | '--surface-2'
+  | '--text'
+  | '--text-muted'
+  | '--border'
+  | '--popover'
+  | '--popover-foreground'
+  | '--input'
+  | '--ring'
+  | '--accent'
+  | '--accent-contrast'
+  | '--success'
+  | '--warning'
+  | '--danger'
+  | '--chart-1'
+  | '--chart-2'
+  | '--chart-3'
+  | '--chart-4'
+  | '--chart-5'
+  | '--sidebar'
+  | '--sidebar-foreground'
+  | '--sidebar-primary'
+  | '--sidebar-accent'
+  | '--sidebar-border'
+
+type ThemeColorField = readonly [ThemeBuilderToken, string, string]
+type ThemeColorSection = {
+  title: string
+  fields: readonly ThemeColorField[]
+}
+
+const THEME_COLOR_SECTIONS: readonly ThemeColorSection[] = [
+  {
+    title: 'Foundation',
+    fields: [
+      ['--bg', 'Background', 'Main app canvas'],
+      ['--surface', 'Card', 'Prompt cards and panels'],
+      ['--surface-2', 'Secondary', 'Navigation hovers and soft panels'],
+      ['--text', 'Foreground', 'Primary readable text'],
+      ['--text-muted', 'Muted Foreground', 'Helper text and metadata'],
+      ['--border', 'Border', 'Dividers and quiet outlines']
+    ]
+  },
+  {
+    title: 'Interactive',
+    fields: [
+      ['--popover', 'Popover', 'Menus, tooltips, floating panels'],
+      ['--popover-foreground', 'Popover Foreground', 'Text inside popovers'],
+      ['--input', 'Input', 'Fields and editable surfaces'],
+      ['--ring', 'Ring', 'Focus states and selected controls'],
+      ['--accent', 'Accent', 'Primary action color'],
+      ['--accent-contrast', 'Accent Foreground', 'Text on primary actions']
+    ]
+  },
+  {
+    title: 'Status',
+    fields: [
+      ['--success', 'Success', 'Good validation and enabled states'],
+      ['--warning', 'Warning', 'Caution and needs-attention states'],
+      ['--danger', 'Danger', 'Delete and destructive states']
+    ]
+  },
+  {
+    title: 'Charts',
+    fields: [
+      ['--chart-1', 'Chart 1', 'Primary graph line'],
+      ['--chart-2', 'Chart 2', 'Secondary graph line'],
+      ['--chart-3', 'Chart 3', 'Bar series'],
+      ['--chart-4', 'Chart 4', 'Comparison series'],
+      ['--chart-5', 'Chart 5', 'Accent series']
+    ]
+  },
+  {
+    title: 'Sidebar',
+    fields: [
+      ['--sidebar', 'Sidebar', 'Navigation rail background'],
+      ['--sidebar-foreground', 'Sidebar Foreground', 'Navigation text'],
+      ['--sidebar-primary', 'Sidebar Primary', 'Active navigation item'],
+      ['--sidebar-accent', 'Sidebar Accent', 'Hovered navigation item'],
+      ['--sidebar-border', 'Sidebar Border', 'Sidebar dividers']
+    ]
+  }
 ] as const
+
+const THEME_BUILDER_FIELDS: readonly ThemeColorField[] = THEME_COLOR_SECTIONS.flatMap((section) => section.fields)
+
+const BUILDER_FONT_OPTIONS = {
+  fontSans: [
+    ['Geist, Public Sans, sans-serif', 'Geist / Public Sans'],
+    ['Public Sans, Inter, Segoe UI, sans-serif', 'Public Sans'],
+    ['IBM Plex Sans, Inter, Segoe UI, sans-serif', 'IBM Plex Sans'],
+    ['Inter, Segoe UI, sans-serif', 'Inter'],
+    ['Aptos, Segoe UI, sans-serif', 'Aptos']
+  ],
+  fontSerif: [
+    ['Source Serif 4, Georgia, serif', 'Source Serif 4'],
+    ['Merriweather, Georgia, serif', 'Merriweather'],
+    ['Lora, Georgia, serif', 'Lora'],
+    ['Georgia, Times New Roman, serif', 'Georgia'],
+    ['Charter, Bitstream Charter, serif', 'Charter']
+  ],
+  fontMono: [
+    ['JetBrains Mono, monospace', 'JetBrains Mono'],
+    ['IBM Plex Mono, monospace', 'IBM Plex Mono'],
+    ['SFMono-Regular, Consolas, monospace', 'SF Mono / Consolas'],
+    ['Cascadia Code, Consolas, monospace', 'Cascadia Code'],
+    ['ui-monospace, monospace', 'System Mono']
+  ]
+} as const
 
 const DEFAULT_THEME_BUILDER = {
   id: 'theme.custom-system',
@@ -112,11 +210,25 @@ const DEFAULT_THEME_BUILDER = {
     '--text': '#101114',
     '--text-muted': '#606775',
     '--border': '#d9dde5',
+    '--popover': '#ffffff',
+    '--popover-foreground': '#101114',
+    '--input': '#eef1f5',
+    '--ring': '#111111',
     '--accent': '#111111',
     '--accent-contrast': '#ffffff',
     '--success': '#16855f',
     '--warning': '#a86818',
-    '--danger': '#b33a3a'
+    '--danger': '#b33a3a',
+    '--chart-1': '#7c9cff',
+    '--chart-2': '#4fb6a3',
+    '--chart-3': '#d9984a',
+    '--chart-4': '#8c6ce8',
+    '--chart-5': '#d45d7c',
+    '--sidebar': '#eef1f5',
+    '--sidebar-foreground': '#20242c',
+    '--sidebar-primary': '#111111',
+    '--sidebar-accent': '#e1e6ee',
+    '--sidebar-border': '#d2d8e2'
   },
   dark: {
     '--bg': '#090a0d',
@@ -125,11 +237,25 @@ const DEFAULT_THEME_BUILDER = {
     '--text': '#f4f6fb',
     '--text-muted': '#a4adbb',
     '--border': '#252a33',
+    '--popover': '#151820',
+    '--popover-foreground': '#f4f6fb',
+    '--input': '#1d212b',
+    '--ring': '#f4f6fb',
     '--accent': '#f4f6fb',
     '--accent-contrast': '#090a0d',
     '--success': '#43b581',
     '--warning': '#d69a35',
-    '--danger': '#e36a6a'
+    '--danger': '#e36a6a',
+    '--chart-1': '#7c9cff',
+    '--chart-2': '#43b581',
+    '--chart-3': '#d69a35',
+    '--chart-4': '#9a7cff',
+    '--chart-5': '#e36a9a',
+    '--sidebar': '#08090c',
+    '--sidebar-foreground': '#d7deea',
+    '--sidebar-primary': '#f4f6fb',
+    '--sidebar-accent': '#151923',
+    '--sidebar-border': '#202532'
   },
   radius: '0.5rem',
   shadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
@@ -248,6 +374,7 @@ export function SettingsDialog({
   const showGeneral = section === 'general' || section === 'all'
   const showPlugins = section === 'plugins' || section === 'all'
   const showThemes = section === 'themes' || section === 'all'
+  const builderColors = themeBuilder[builderMode]
 
   useEffect(() => {
     setFontScaleDraft(appearance.fontScale)
@@ -288,6 +415,182 @@ export function SettingsDialog({
   const loadBuilderManifest = () => {
     setThemeManifestJson(JSON.stringify(createThemeManifestFromBuilder(themeBuilder), null, 2))
     setEditingThemeId(null)
+  }
+
+  const renderBuilderTokenUsage = (token: ThemeBuilderToken, label: string) => {
+    const tokenColor = builderColors[token]
+    const shellStyle = {
+      background: builderColors['--surface-2'],
+      color: builderColors['--text'],
+      borderRadius: themeBuilder.radius
+    }
+    const panelStyle = {
+      background: builderColors['--surface'],
+      color: builderColors['--text'],
+      border: `1px solid ${builderColors['--border']}`,
+      borderRadius: themeBuilder.radius
+    }
+
+    if (token.startsWith('--chart-')) {
+      return (
+        <div className="mt-3 flex min-h-20 items-end gap-1 p-2" style={shellStyle}>
+          {[24, 42, 30, 58, 38].map((height, index) => (
+            <span
+              key={index}
+              className="flex-1"
+              style={{
+                height,
+                background: token === `--chart-${index + 1}` ? tokenColor : builderColors['--text-muted'],
+                opacity: token === `--chart-${index + 1}` ? 1 : 0.35,
+                borderRadius: '2px'
+              }}
+            />
+          ))}
+        </div>
+      )
+    }
+
+    if (token.startsWith('--sidebar')) {
+      return (
+        <div
+          className="mt-3 min-h-20 space-y-1 p-2 text-[10px]"
+          style={{
+            background: token === '--sidebar' ? tokenColor : builderColors['--sidebar'],
+            color: token === '--sidebar-foreground' ? tokenColor : builderColors['--sidebar-foreground'],
+            border: `1px solid ${token === '--sidebar-border' ? tokenColor : builderColors['--sidebar-border']}`,
+            borderRadius: themeBuilder.radius
+          }}
+        >
+          <span
+            className="block px-2 py-1"
+            style={{
+              background: token === '--sidebar-primary' ? tokenColor : builderColors['--sidebar-primary'],
+              color: builderColors['--accent-contrast'],
+              borderRadius: '2px'
+            }}
+          >
+            Active page
+          </span>
+          <span
+            className="block px-2 py-1"
+            style={{
+              background: token === '--sidebar-accent' ? tokenColor : builderColors['--sidebar-accent'],
+              borderRadius: '2px'
+            }}
+          >
+            Hovered tag
+          </span>
+        </div>
+      )
+    }
+
+    switch (token) {
+      case '--bg':
+        return (
+          <div className="mt-3 min-h-20 p-2 text-[10px]" style={{ ...shellStyle, background: tokenColor }}>
+            <div className="h-full p-2" style={panelStyle}>App canvas around every column</div>
+          </div>
+        )
+      case '--surface':
+      case '--surface-2':
+        return (
+          <div className="mt-3 min-h-20 p-2 text-[10px]" style={shellStyle}>
+            <div className="p-3" style={{ ...panelStyle, background: tokenColor }}>
+              {token === '--surface' ? 'Prompt card surface' : 'Soft hover / secondary panel'}
+            </div>
+          </div>
+        )
+      case '--text':
+      case '--text-muted':
+        return (
+          <div className="mt-3 min-h-20 p-3" style={panelStyle}>
+            <p className="text-sm font-semibold" style={{ color: token === '--text' ? tokenColor : builderColors['--text'] }}>
+              Prompt title
+            </p>
+            <p className="mt-1 text-xs" style={{ color: token === '--text-muted' ? tokenColor : builderColors['--text-muted'] }}>
+              Added date, helper copy, and metadata
+            </p>
+          </div>
+        )
+      case '--border':
+        return (
+          <div className="mt-3 min-h-20 p-2 text-[10px]" style={shellStyle}>
+            <div className="h-full border-2 p-3" style={{ borderColor: tokenColor, borderRadius: themeBuilder.radius }}>
+              Dividers and card edges
+            </div>
+          </div>
+        )
+      case '--popover':
+      case '--popover-foreground':
+        return (
+          <div className="mt-3 min-h-20 p-3 text-[10px]" style={shellStyle}>
+            <div
+              className="p-3"
+              style={{
+                background: token === '--popover' ? tokenColor : builderColors['--popover'],
+                color: token === '--popover-foreground' ? tokenColor : builderColors['--popover-foreground'],
+                border: `1px solid ${builderColors['--border']}`,
+                borderRadius: themeBuilder.radius,
+                boxShadow: themeBuilder.shadow
+              }}
+            >
+              Tooltip / popover message
+            </div>
+          </div>
+        )
+      case '--input':
+      case '--ring':
+        return (
+          <div className="mt-3 min-h-20 p-3" style={panelStyle}>
+            <span
+              className="block h-10 px-3 py-2 text-xs"
+              style={{
+                background: token === '--input' ? tokenColor : builderColors['--input'],
+                border: `2px solid ${token === '--ring' ? tokenColor : builderColors['--border']}`,
+                borderRadius: themeBuilder.radius,
+                color: builderColors['--text']
+              }}
+            >
+              Focused input field
+            </span>
+          </div>
+        )
+      case '--accent':
+      case '--accent-contrast':
+        return (
+          <div className="mt-3 grid min-h-20 place-items-center p-2" style={shellStyle}>
+            <span
+              className="px-4 py-2 text-xs font-semibold"
+              style={{
+                background: token === '--accent' ? tokenColor : builderColors['--accent'],
+                color: token === '--accent-contrast' ? tokenColor : builderColors['--accent-contrast'],
+                borderRadius: themeBuilder.radius
+              }}
+            >
+              Primary action
+            </span>
+          </div>
+        )
+      case '--success':
+      case '--warning':
+      case '--danger':
+        return (
+          <div className="mt-3 min-h-20 p-3" style={shellStyle}>
+            <div className="p-3 text-xs" style={{ borderLeft: `4px solid ${tokenColor}`, background: `${tokenColor}20` }}>
+              <strong style={{ color: tokenColor }}>{label}</strong>
+              <p className="mt-1" style={{ color: builderColors['--text-muted'] }}>
+                {label} message state
+              </p>
+            </div>
+          </div>
+        )
+      default:
+        return (
+          <div className="mt-3 min-h-20 p-2" style={shellStyle}>
+            <div className="h-full" style={{ background: tokenColor, borderRadius: '2px' }} />
+          </div>
+        )
+    }
   }
 
   const body = (
@@ -617,10 +920,13 @@ export function SettingsDialog({
             </div>
           )}
 
-          <article className="grid gap-4 rounded-lg border border-line/20 bg-surface p-3 xl:grid-cols-[minmax(320px,0.9fr)_minmax(420px,1.1fr)]">
+          <article className="grid gap-4 rounded-lg border border-line/20 bg-surface p-3 xl:grid-cols-[minmax(360px,0.92fr)_minmax(560px,1.08fr)]">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold">Theme Builder</p>
+                <div>
+                  <p className="text-sm font-semibold">Theme Builder</p>
+                  <p className="mt-1 text-xs text-muted">Every token below has a matching preview so you can see where it appears.</p>
+                </div>
                 <div className="inline-flex border border-line/20 bg-surface2">
                   {(['light', 'dark'] as BuilderMode[]).map((mode) => (
                     <button
@@ -654,26 +960,42 @@ export function SettingsDialog({
                 </label>
               </div>
 
-              <details open className="space-y-2">
+              <details open className="space-y-3">
                 <summary className="cursor-pointer text-sm font-semibold">Colors</summary>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {THEME_BUILDER_FIELDS.map(([token, label]) => (
-                    <label key={token} className="block text-xs">
-                      <span className="mb-1 block font-medium text-muted">{label}</span>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          className="h-9 w-10 border border-line/20 bg-surface2"
-                          value={themeBuilder[builderMode][token]}
-                          onChange={(event) => updateBuilderToken(builderMode, token, event.target.value)}
-                        />
-                        <input
-                          className="h-9 min-w-0 flex-1 border border-line/20 bg-surface2 px-2 outline-none focus:border-accent/10"
-                          value={themeBuilder[builderMode][token]}
-                          onChange={(event) => updateBuilderToken(builderMode, token, event.target.value)}
-                        />
+                <div className="space-y-4">
+                  {THEME_COLOR_SECTIONS.map((section) => (
+                    <div key={section.title} className="space-y-2">
+                      <p className="mono-meta text-[10px] uppercase tracking-[0.18em] text-muted">{section.title}</p>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {section.fields.map(([token, label, description]) => (
+                          <label key={token} className="block border border-line/20 bg-surface2 p-2 text-xs">
+                            <span className="mb-2 flex items-start justify-between gap-3">
+                              <span>
+                                <span className="block font-semibold text-text">{label}</span>
+                                <span className="block text-[10px] leading-4 text-muted">{description}</span>
+                              </span>
+                              <span
+                                className="h-8 w-10 shrink-0 border border-line/20"
+                                style={{ background: builderColors[token] }}
+                              />
+                            </span>
+                            <span className="flex gap-2">
+                              <input
+                                type="color"
+                                className="h-9 w-10 border border-line/20 bg-surface"
+                                value={builderColors[token]}
+                                onChange={(event) => updateBuilderToken(builderMode, token, event.target.value)}
+                              />
+                              <input
+                                className="h-9 min-w-0 flex-1 border border-line/20 bg-surface px-2 font-mono outline-none focus:border-accent/10"
+                                value={builderColors[token]}
+                                onChange={(event) => updateBuilderToken(builderMode, token, event.target.value)}
+                              />
+                            </span>
+                          </label>
+                        ))}
                       </div>
-                    </label>
+                    </div>
                   ))}
                 </div>
               </details>
@@ -682,19 +1004,28 @@ export function SettingsDialog({
                 <summary className="cursor-pointer text-sm font-semibold">Typography</summary>
                 <div className="grid gap-2">
                   {([
-                    ['fontSans', 'Font Sans'],
-                    ['fontSerif', 'Font Serif'],
-                    ['fontMono', 'Font Mono']
+                    ['fontSans', 'Interface font'],
+                    ['fontSerif', 'Editorial font'],
+                    ['fontMono', 'Code font']
                   ] as const).map(([key, label]) => (
                     <label key={key} className="block text-xs">
                       <span className="mb-1 block font-medium text-muted">{label}</span>
-                      <input
+                      <select
                         className="h-9 w-full border border-line/20 bg-surface2 px-2 outline-none focus:border-accent/10"
                         value={themeBuilder[key]}
                         onChange={(event) => setThemeBuilder((current) => ({ ...current, [key]: event.target.value }))}
-                      />
+                      >
+                        {BUILDER_FONT_OPTIONS[key].map(([value, optionLabel]) => (
+                          <option key={value} value={value}>{optionLabel}</option>
+                        ))}
+                      </select>
                     </label>
                   ))}
+                </div>
+                <div className="grid gap-2 border border-line/20 bg-surface2 p-3">
+                  <p style={{ fontFamily: themeBuilder.fontSans }} className="text-sm">Interface: buttons, forms, and navigation labels.</p>
+                  <p style={{ fontFamily: themeBuilder.fontSerif }} className="text-xl font-semibold">Editorial: prompt titles and reading surfaces.</p>
+                  <p style={{ fontFamily: themeBuilder.fontMono }} className="text-xs text-muted">Mono: metadata, tokens, and code-like values.</p>
                 </div>
               </details>
 
@@ -702,20 +1033,23 @@ export function SettingsDialog({
                 <summary className="cursor-pointer text-sm font-semibold">Other</summary>
                 <label className="block text-xs">
                   <span className="mb-1 block font-medium text-muted">Radius</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={1.5}
-                    step={0.05}
-                    className="w-full accent-accent"
-                    value={Number.parseFloat(themeBuilder.radius)}
-                    onChange={(event) => setThemeBuilder((current) => ({ ...current, radius: `${event.target.value}rem` }))}
-                  />
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1.5}
+                      step={0.05}
+                      className="w-full accent-accent"
+                      value={Number.parseFloat(themeBuilder.radius)}
+                      onChange={(event) => setThemeBuilder((current) => ({ ...current, radius: `${event.target.value}rem` }))}
+                    />
+                    <span className="w-14 text-right font-mono text-[10px] text-muted">{themeBuilder.radius}</span>
+                  </div>
                 </label>
                 <label className="block text-xs">
                   <span className="mb-1 block font-medium text-muted">Shadow</span>
                   <input
-                    className="h-9 w-full border border-line/20 bg-surface2 px-2 outline-none focus:border-accent/10"
+                    className="h-9 w-full border border-line/20 bg-surface2 px-2 font-mono outline-none focus:border-accent/10"
                     value={themeBuilder.shadow}
                     onChange={(event) => setThemeBuilder((current) => ({ ...current, shadow: event.target.value }))}
                   />
@@ -728,97 +1062,214 @@ export function SettingsDialog({
             </div>
 
             <div
-              className="min-h-[440px] overflow-hidden border border-line/20 p-4"
+              className="min-h-[640px] overflow-hidden border p-4"
               style={{
-                background: themeBuilder[builderMode]['--bg'],
-                color: themeBuilder[builderMode]['--text'],
-                borderColor: themeBuilder[builderMode]['--border'],
+                background: builderColors['--bg'],
+                color: builderColors['--text'],
+                borderColor: builderColors['--border'],
                 borderRadius: themeBuilder.radius,
                 fontFamily: themeBuilder.fontSans
               }}
             >
-              <div className="mb-3 flex items-center gap-2 text-xs" style={{ color: themeBuilder[builderMode]['--text-muted'] }}>
-                <span>Preview</span>
-                <span>/</span>
-                <span>Cards</span>
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div
-                  className="p-4"
-                  style={{
-                    background: themeBuilder[builderMode]['--surface'],
-                    border: `1px solid ${themeBuilder[builderMode]['--border']}`,
-                    borderRadius: themeBuilder.radius,
-                    boxShadow: themeBuilder.shadow
-                  }}
-                >
-                  <p className="text-xs" style={{ color: themeBuilder[builderMode]['--text-muted'] }}>
-                    Total Revenue
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold">$15,231.89</p>
-                  <div className="mt-6 h-16 border-t border-line/20" />
+              <div className="mb-4 flex items-center justify-between gap-3 text-xs" style={{ color: builderColors['--text-muted'] }}>
+                <div className="flex items-center gap-2">
+                  <span>Preview</span>
+                  <span>/</span>
+                  <span>Design System</span>
                 </div>
-                <div
-                  className="p-4"
+                <button
+                  type="button"
+                  className="px-3 py-1 font-semibold"
                   style={{
-                    background: themeBuilder[builderMode]['--surface'],
-                    border: `1px solid ${themeBuilder[builderMode]['--border']}`,
-                    borderRadius: themeBuilder.radius,
-                    boxShadow: themeBuilder.shadow
+                    background: builderColors['--accent'],
+                    color: builderColors['--accent-contrast'],
+                    borderRadius: themeBuilder.radius
                   }}
                 >
-                  <p className="text-lg font-semibold">Create an account</p>
-                  <input
-                    readOnly
-                    value="me@example.com"
-                    className="mt-3 h-9 w-full px-2 text-xs"
+                  Save
+                </button>
+              </div>
+
+              <div className="grid gap-3 xl:grid-cols-[160px_1fr]">
+                <aside
+                  className="space-y-2 p-3"
+                  style={{
+                    background: builderColors['--sidebar'],
+                    color: builderColors['--sidebar-foreground'],
+                    border: `1px solid ${builderColors['--sidebar-border']}`,
+                    borderRadius: themeBuilder.radius
+                  }}
+                >
+                  <p className="mono-meta text-[10px] uppercase tracking-[0.18em]" style={{ color: builderColors['--text-muted'] }}>Sidebar</p>
+                  {['All Pages', 'Starred', 'Themes'].map((item, index) => (
+                    <div
+                      key={item}
+                      className="px-2 py-1.5 text-xs"
+                      style={{
+                        background: index === 0 ? builderColors['--sidebar-primary'] : index === 2 ? builderColors['--sidebar-accent'] : 'transparent',
+                        color: index === 0 ? builderColors['--accent-contrast'] : builderColors['--sidebar-foreground'],
+                        borderRadius: themeBuilder.radius
+                      }}
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </aside>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div
+                    className="p-4"
                     style={{
-                      background: themeBuilder[builderMode]['--surface-2'],
-                      border: `1px solid ${themeBuilder[builderMode]['--border']}`,
+                      background: builderColors['--surface'],
+                      border: `1px solid ${builderColors['--border']}`,
                       borderRadius: themeBuilder.radius,
-                      color: themeBuilder[builderMode]['--text']
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="mt-3 h-9 w-full text-xs font-semibold"
-                    style={{
-                      background: themeBuilder[builderMode]['--accent'],
-                      color: themeBuilder[builderMode]['--accent-contrast'],
-                      borderRadius: themeBuilder.radius
+                      boxShadow: themeBuilder.shadow
                     }}
                   >
-                    Create account
-                  </button>
-                </div>
-                <div
-                  className="md:col-span-2 p-4"
-                  style={{
-                    background: themeBuilder[builderMode]['--surface'],
-                    border: `1px solid ${themeBuilder[builderMode]['--border']}`,
-                    borderRadius: themeBuilder.radius,
-                    boxShadow: themeBuilder.shadow
-                  }}
-                >
-                  <p className="text-lg font-semibold">Upgrade your subscription</p>
-                  <p className="mt-1 text-xs" style={{ color: themeBuilder[builderMode]['--text-muted'] }}>
-                    You are currently on the free plan. Upgrade to the pro plan to get access to all features.
-                  </p>
-                  <div className="mt-4 grid gap-2 md:grid-cols-2">
-                    <div className="border border-line/20 p-3" style={{ borderColor: themeBuilder[builderMode]['--border'], borderRadius: themeBuilder.radius }}>
-                      <p className="font-semibold">Starter Plan</p>
-                      <p className="text-xs" style={{ color: themeBuilder[builderMode]['--text-muted'] }}>Perfect for small businesses.</p>
+                    <p className="text-xs" style={{ color: builderColors['--text-muted'] }}>Card / Revenue</p>
+                    <p className="mt-1 text-2xl font-semibold" style={{ fontFamily: themeBuilder.fontSerif }}>$15,231.89</p>
+                    <div className="mt-5 flex h-20 items-end gap-2 border-t pt-4" style={{ borderColor: builderColors['--border'] }}>
+                      {[36, 48, 30, 42, 58, 34, 66].map((height, index) => (
+                        <span
+                          key={index}
+                          className="flex-1"
+                          style={{
+                            height,
+                            background: builderColors[`--chart-${(index % 5) + 1}` as keyof typeof builderColors],
+                            borderRadius: '2px'
+                          }}
+                        />
+                      ))}
                     </div>
-                    <div className="border border-line/20 p-3" style={{ borderColor: themeBuilder[builderMode]['--border'], borderRadius: themeBuilder.radius }}>
-                      <p className="font-semibold">Pro Plan</p>
-                      <p className="text-xs" style={{ color: themeBuilder[builderMode]['--text-muted'] }}>More features and storage.</p>
+                  </div>
+
+                  <div
+                    className="p-4"
+                    style={{
+                      background: builderColors['--surface'],
+                      border: `1px solid ${builderColors['--border']}`,
+                      borderRadius: themeBuilder.radius,
+                      boxShadow: themeBuilder.shadow
+                    }}
+                  >
+                    <p className="text-lg font-semibold">Create an account</p>
+                    <p className="mt-1 text-xs" style={{ color: builderColors['--text-muted'] }}>Input, ring, popover, and primary action.</p>
+                    <input
+                      readOnly
+                      value="me@example.com"
+                      className="mt-3 h-9 w-full px-2 text-xs"
+                      style={{
+                        background: builderColors['--input'],
+                        border: `1px solid ${builderColors['--ring']}`,
+                        borderRadius: themeBuilder.radius,
+                        color: builderColors['--text']
+                      }}
+                    />
+                    <div
+                      className="mt-2 p-2 text-xs"
+                      style={{
+                        background: builderColors['--popover'],
+                        color: builderColors['--popover-foreground'],
+                        border: `1px solid ${builderColors['--border']}`,
+                        borderRadius: themeBuilder.radius
+                      }}
+                    >
+                      Popover: validation helper appears here.
+                    </div>
+                    <button
+                      type="button"
+                      className="mt-3 h-9 w-full text-xs font-semibold"
+                      style={{
+                        background: builderColors['--accent'],
+                        color: builderColors['--accent-contrast'],
+                        borderRadius: themeBuilder.radius
+                      }}
+                    >
+                      Create account
+                    </button>
+                  </div>
+
+                  <div
+                    className="md:col-span-2 p-4"
+                    style={{
+                      background: builderColors['--surface'],
+                      border: `1px solid ${builderColors['--border']}`,
+                      borderRadius: themeBuilder.radius,
+                      boxShadow: themeBuilder.shadow
+                    }}
+                  >
+                    <p className="text-lg font-semibold">Status States</p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-3">
+                      {([
+                        ['--success', 'Success', 'Prompt validated and ready.'],
+                        ['--warning', 'Warning', 'Missing target or use case.'],
+                        ['--danger', 'Danger', 'Delete or destructive action.']
+                      ] as const).map(([token, label, text]) => (
+                        <div
+                          key={token}
+                          className="p-3 text-xs"
+                          style={{
+                            background: `${builderColors[token]}22`,
+                            border: `1px solid ${builderColors[token]}`,
+                            color: builderColors['--text'],
+                            borderRadius: themeBuilder.radius
+                          }}
+                        >
+                          <p className="font-semibold" style={{ color: builderColors[token] }}>{label}</p>
+                          <p className="mt-1" style={{ color: builderColors['--text-muted'] }}>{text}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
               </div>
+
+              <div className="mt-4">
+                <p className="mb-1 text-xs font-semibold" style={{ color: builderColors['--text-muted'] }}>Token Usage Preview</p>
+                <p className="mb-3 text-[10px] leading-4" style={{ color: builderColors['--text-muted'] }}>
+                  Each token has its own card so the color editor and the preview point to the same UI role.
+                </p>
+                <div className="space-y-4">
+                  {THEME_COLOR_SECTIONS.map((section) => (
+                    <section key={section.title} className="space-y-2">
+                      <p className="mono-meta text-[10px] uppercase tracking-[0.18em]" style={{ color: builderColors['--text-muted'] }}>
+                        {section.title}
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {section.fields.map(([token, label, description]) => (
+                          <div
+                            key={token}
+                            className="p-2 text-xs"
+                            style={{
+                              background: builderColors['--surface'],
+                              border: `1px solid ${builderColors['--border']}`,
+                              borderRadius: themeBuilder.radius
+                            }}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <span>
+                                <p className="font-semibold">{label}</p>
+                                <p className="mt-0.5 text-[10px] leading-4" style={{ color: builderColors['--text-muted'] }}>{description}</p>
+                              </span>
+                              <span
+                                className="h-7 w-7 shrink-0"
+                                style={{
+                                  background: builderColors[token],
+                                  borderRadius: '2px'
+                                }}
+                              />
+                            </div>
+                            {renderBuilderTokenUsage(token, label)}
+                            <p className="mt-2 font-mono text-[10px]" style={{ color: builderColors['--text-muted'] }}>{token}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
             </div>
           </article>
-
           <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
