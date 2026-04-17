@@ -119,6 +119,14 @@ function uniqueTags(tags: string[] | undefined): string[] {
   )
 }
 
+function nextDisplayOrder(prompts: PromptDTO[], profileId: string): number {
+  const orders = prompts
+    .filter((prompt) => prompt.profileId === profileId)
+    .map((prompt) => prompt.displayOrder)
+    .filter((order) => Number.isFinite(order))
+  return (orders.length > 0 ? Math.min(...orders) : 0) - 1000
+}
+
 function normalizeTemplate(input: CreateTemplateInput | UpdateTemplateInput) {
   return {
     title: input.title.trim(),
@@ -294,6 +302,7 @@ function createStarterPrompts(profileId: string, createdAt: string): PromptDTO[]
       updatedAt: createdAt,
       lastUsedAt: null,
       useCount: 0,
+      displayOrder: 0,
       useCase: 'Weekly team update',
       aiTarget: 'ChatGPT'
     },
@@ -323,6 +332,7 @@ function createStarterPrompts(profileId: string, createdAt: string): PromptDTO[]
       updatedAt: createdAt,
       lastUsedAt: null,
       useCount: 0,
+      displayOrder: 1000,
       useCase: 'Feature delivery',
       aiTarget: 'ChatGPT'
     }
@@ -414,6 +424,15 @@ function loadDb(): BrowserDb {
     if (!parsed || !Array.isArray(parsed.profiles) || !Array.isArray(parsed.prompts)) {
       throw new Error('Invalid browser db')
     }
+    const fallbackOrderByProfile = new Map<string, number>()
+    parsed.prompts.forEach((prompt) => {
+      if (Number.isFinite(prompt.displayOrder)) {
+        return
+      }
+      const nextOrder = fallbackOrderByProfile.get(prompt.profileId) ?? 0
+      prompt.displayOrder = nextOrder
+      fallbackOrderByProfile.set(prompt.profileId, nextOrder + 1000)
+    })
     if (!parsed.marketplace) {
       parsed.marketplace = {
         plugins: [],
@@ -461,8 +480,8 @@ function withDb<T>(operation: (db: BrowserDb) => T): T {
 
 function sortPrompts(items: PromptDTO[]): PromptDTO[] {
   return [...items].sort((a, b) => {
-    if (a.pinned !== b.pinned) {
-      return a.pinned ? -1 : 1
+    if (a.displayOrder !== b.displayOrder) {
+      return a.displayOrder - b.displayOrder
     }
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   })
@@ -771,6 +790,7 @@ export function createBrowserApiClient(): ApiClient {
             updatedAt: now,
             lastUsedAt: null,
             useCount: 0,
+            displayOrder: nextDisplayOrder(db.prompts, profileId),
             useCase: input.useCase?.trim() || undefined,
             aiTarget: input.aiTarget?.trim() || undefined,
             validatedAt: undefined,
@@ -829,6 +849,23 @@ export function createBrowserApiClient(): ApiClient {
           db.prompts = db.prompts.filter((prompt) => !(prompt.profileId === profileId && prompt.id === id))
           db.versions = db.versions.filter((version) => version.promptId !== id)
           return { ok: true }
+        }),
+      reorder: async (profileId: string, promptIds: string[]) =>
+        withDb((db) => {
+          const uniqueIds = [...new Set(promptIds)]
+          const promptsById = new Map(db.prompts.map((prompt) => [prompt.id, prompt]))
+          if (uniqueIds.some((id) => promptsById.get(id)?.profileId !== profileId)) {
+            throw new Error('Cannot reorder prompts outside the active profile')
+          }
+
+          uniqueIds.forEach((id, index) => {
+            const prompt = promptsById.get(id)
+            if (prompt) {
+              prompt.displayOrder = index * 1000
+            }
+          })
+
+          return clone(applyPromptFilters(db.prompts.filter((prompt) => prompt.profileId === profileId)))
         }),
       toggleFavorite: async (profileId: string, id: string) =>
         withDb((db) => {
@@ -911,6 +948,7 @@ export function createBrowserApiClient(): ApiClient {
             updatedAt: now,
             lastUsedAt: null,
             useCount: 0,
+            displayOrder: nextDisplayOrder(db.prompts, source.profileId),
             validatedAt: undefined,
             validationProvider: undefined,
             validationModel: undefined,
@@ -1218,6 +1256,7 @@ export function createBrowserApiClient(): ApiClient {
             updatedAt: now,
             lastUsedAt: null,
             useCount: 0,
+            displayOrder: nextDisplayOrder(db.prompts, profileId),
             useCase: parsed.prompt.useCase,
             aiTarget: parsed.prompt.aiTarget,
             refinedVersion: parsed.prompt.refinedVersion
@@ -1265,6 +1304,7 @@ export function createBrowserApiClient(): ApiClient {
                 updatedAt: now,
                 lastUsedAt: null,
                 useCount: 0,
+                displayOrder: nextDisplayOrder(db.prompts, profileId),
                 useCase: parsed.prompt.useCase,
                 aiTarget: parsed.prompt.aiTarget,
                 refinedVersion: parsed.prompt.refinedVersion
@@ -1289,6 +1329,7 @@ export function createBrowserApiClient(): ApiClient {
               updatedAt: now,
               lastUsedAt: null,
               useCount: 0,
+              displayOrder: nextDisplayOrder(db.prompts, profileId),
               useCase: parsed.useCase?.trim() || undefined,
               aiTarget: parsed.aiTarget?.trim() || undefined
             }
@@ -1310,7 +1351,8 @@ export function createBrowserApiClient(): ApiClient {
               createdAt: now,
               updatedAt: now,
               lastUsedAt: null,
-              useCount: 0
+              useCount: 0,
+              displayOrder: nextDisplayOrder(db.prompts, profileId)
             }
             db.prompts = [imported, ...db.prompts]
             return { imported: true, prompt: clone(imported) } satisfies ImportResult

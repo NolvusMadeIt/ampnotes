@@ -1,5 +1,5 @@
-import type { MouseEvent } from 'react'
-import { CopyCheck, Heart, Pin, Sparkles } from 'lucide-react'
+import type { DragEvent, MouseEvent } from 'react'
+import { CopyCheck, GripVertical, Heart, Pin, Sparkles } from 'lucide-react'
 import type { PromptDTO } from '@shared/types'
 import { cn } from '@renderer/lib/cn'
 import { GroqIcon } from '@renderer/components/ui/GroqIcon'
@@ -8,16 +8,28 @@ interface PromptCardProps {
   prompt: PromptDTO
   selected: boolean
   isTemplateCopy?: boolean
+  reorderEnabled?: boolean
+  dragging?: boolean
   onSelect: () => void
   onContextMenu: (event: MouseEvent<HTMLElement>) => void
+  onDragStart?: (event: DragEvent<HTMLElement>) => void
+  onDragOver?: (event: DragEvent<HTMLElement>) => void
+  onDrop?: (event: DragEvent<HTMLElement>) => void
+  onDragEnd?: () => void
 }
 
 export function PromptCard({
   prompt,
   selected,
   isTemplateCopy = false,
+  reorderEnabled = false,
+  dragging = false,
   onSelect,
-  onContextMenu
+  onContextMenu,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd
 }: PromptCardProps) {
   const providerLabel = prompt.validationProvider
     ? `${prompt.validationProvider.charAt(0).toUpperCase()}${prompt.validationProvider.slice(1)}`
@@ -40,10 +52,14 @@ export function PromptCard({
     <article
       className={cn(
         'group cursor-pointer rounded-xl border px-4 py-3 transition-colors',
-        selected ? 'border-accent/10 bg-accent/10' : 'border-line/20 bg-surface hover:bg-surface2/60'
+        selected ? 'border-accent/10 bg-accent/10' : 'border-line/20 bg-surface hover:bg-surface2/60',
+        dragging && 'opacity-45'
       )}
       onClick={onSelect}
       onContextMenu={onContextMenu}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       role="button"
       tabIndex={0}
       onKeyDown={(event) => {
@@ -54,7 +70,23 @@ export function PromptCard({
       }}
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="line-clamp-1 editorial-heading text-2xl font-semibold text-text">{prompt.title}</h3>
+        <div className="flex min-w-0 items-start gap-2">
+          {reorderEnabled && (
+            <button
+              type="button"
+              draggable
+              className="mt-1 inline-flex cursor-grab items-center text-muted opacity-70 transition-opacity hover:text-text hover:opacity-100 active:cursor-grabbing"
+              aria-label={`Drag ${prompt.title} to reorder`}
+              title="Drag to reorder"
+              onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+              onDragStart={onDragStart}
+            >
+              <GripVertical size={15} />
+            </button>
+          )}
+          <h3 className="line-clamp-1 editorial-heading text-2xl font-semibold text-text">{prompt.title}</h3>
+        </div>
         <div className="shrink-0 text-right">
           {statusIcons.length > 0 && (
             <div className="mb-1 flex justify-end gap-1.5">

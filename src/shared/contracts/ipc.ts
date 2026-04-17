@@ -133,6 +133,11 @@ export const promptValidationRequestSchema = z.object({
   promptId: z.string().uuid()
 })
 
+export const promptReorderSchema = z.object({
+  profileId: z.string().uuid(),
+  promptIds: z.array(z.string().uuid()).min(1).max(300)
+})
+
 export const shareSelectedExportSchema = z.object({
   profileId: z.string().uuid(),
   promptIds: z.array(z.string().uuid()).max(300).default([]),

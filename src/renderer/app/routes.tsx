@@ -112,6 +112,7 @@ export default function Routes() {
   const [newPromptRefineConfigured, setNewPromptRefineConfigured] = useState(false)
   const [newPromptRefining, setNewPromptRefining] = useState(false)
   const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
+  const [draggingPromptId, setDraggingPromptId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -188,6 +189,7 @@ export default function Routes() {
     [marketplaceState.plugins]
   )
   const isBrowserMode = useMemo(() => !hasDesktopBridge(), [])
+  const canReorderPrompts = nav === 'all' && !activeTag && search.trim().length === 0 && prompts.length > 1
 
   useEffect(() => {
     applyAppearance(appearance, resolveTheme(theme))
@@ -612,6 +614,35 @@ export default function Routes() {
       flashToast('Prompt duplicated')
     },
     [flashToast, nav, profile, refreshWorkspace, setSelectedPromptId]
+  )
+
+  const handleReorderPrompts = useCallback(
+    async (draggedId: string, targetId: string) => {
+      if (!profile || draggedId === targetId || !canReorderPrompts) {
+        return
+      }
+
+      const draggedIndex = prompts.findIndex((prompt) => prompt.id === draggedId)
+      const targetIndex = prompts.findIndex((prompt) => prompt.id === targetId)
+      if (draggedIndex < 0 || targetIndex < 0) {
+        return
+      }
+
+      const nextPrompts = [...prompts]
+      const [draggedPrompt] = nextPrompts.splice(draggedIndex, 1)
+      nextPrompts.splice(targetIndex, 0, draggedPrompt)
+      setPrompts(nextPrompts)
+
+      try {
+        const reordered = await api.prompt.reorder(profile.id, nextPrompts.map((prompt) => prompt.id))
+        setPrompts(reordered)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Could not reorder prompts'
+        flashToast(message, 'warning')
+        await refreshWorkspace()
+      }
+    },
+    [api.prompt, canReorderPrompts, flashToast, profile, prompts, refreshWorkspace]
   )
 
   const handleUseTemplate = useCallback(
@@ -1198,6 +1229,8 @@ export default function Routes() {
                       isTemplateCopy={templates.some(
                         (template) => template.title === prompt.title && template.content === prompt.content
                       )}
+                      reorderEnabled={canReorderPrompts}
+                      dragging={draggingPromptId === prompt.id}
                       onSelect={() => {
                         setSelectedPromptId(prompt.id)
                         setPromptDetailMode(nav === 'all' ? 'home' : 'read')
@@ -1212,6 +1245,35 @@ export default function Routes() {
                           prompt
                         })
                       }}
+                      onDragStart={(event) => {
+                        if (!canReorderPrompts) {
+                          return
+                        }
+                        event.stopPropagation()
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/plain', prompt.id)
+                        setDraggingPromptId(prompt.id)
+                      }}
+                      onDragOver={(event) => {
+                        if (!canReorderPrompts || !draggingPromptId || draggingPromptId === prompt.id) {
+                          return
+                        }
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'move'
+                      }}
+                      onDrop={(event) => {
+                        if (!canReorderPrompts) {
+                          return
+                        }
+                        event.preventDefault()
+                        event.stopPropagation()
+                        const draggedId = event.dataTransfer.getData('text/plain') || draggingPromptId
+                        setDraggingPromptId(null)
+                        if (draggedId) {
+                          void handleReorderPrompts(draggedId, prompt.id)
+                        }
+                      }}
+                      onDragEnd={() => setDraggingPromptId(null)}
                     />
                   ))}
                 </div>

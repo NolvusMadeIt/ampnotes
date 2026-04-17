@@ -39,6 +39,7 @@ export interface PromptDTO {
   updatedAt: string
   lastUsedAt: string | null
   useCount: number
+  displayOrder: number
   useCase?: string
   aiTarget?: string
   refinedVersion?: string

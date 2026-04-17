@@ -41,6 +41,7 @@ export interface ApiClient {
     getById: (id: string) => Promise<PromptDTO | null>
     create: (profileId: string, input: CreatePromptInput) => Promise<PromptDTO>
     update: (profileId: string, input: UpdatePromptInput) => Promise<PromptDTO>
+    reorder: (profileId: string, promptIds: string[]) => Promise<PromptDTO[]>
     delete: (profileId: string, id: string) => Promise<{ ok: boolean }>
     toggleFavorite: (profileId: string, id: string) => Promise<PromptDTO>
     togglePinned: (profileId: string, id: string) => Promise<PromptDTO>

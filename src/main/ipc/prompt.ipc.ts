@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import {
   createTemplateSchema,
   createPromptSchema,
+  promptReorderSchema,
   promptValidationRequestSchema,
   promptListFiltersSchema,
   updateTemplateSchema,
@@ -61,6 +62,11 @@ export function registerPromptIpc(context: IpcContext): void {
     const request = payload as { profileId: string; input: unknown }
     const input = updatePromptSchema.parse(request.input)
     return context.promptRepo.updatePrompt(request.profileId, input)
+  })
+
+  ipcMain.handle('prompt.reorder', (_event, payload: unknown) => {
+    const request = promptReorderSchema.parse(payload)
+    return context.promptRepo.reorderPrompts(request.profileId, request.promptIds)
   })
 
   ipcMain.handle('prompt.delete', (_event, payload: unknown) => {

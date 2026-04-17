@@ -73,4 +73,35 @@ describe('PromptRepo', () => {
     expect(updated.useCount).toBe(1)
     expect(updated.lastUsedAt).not.toBeNull()
   })
+
+  it('persists custom prompt order', () => {
+    const db = getDb()
+    const profileRepo = new ProfileRepo(db)
+    const promptRepo = new PromptRepo(db)
+
+    const profile = profileRepo.createProfile('Mira')
+    const first = promptRepo.createPrompt(profile.id, {
+      title: 'First Prompt',
+      content: 'First prompt content',
+      tags: []
+    })
+    const second = promptRepo.createPrompt(profile.id, {
+      title: 'Second Prompt',
+      content: 'Second prompt content',
+      tags: []
+    })
+    const third = promptRepo.createPrompt(profile.id, {
+      title: 'Third Prompt',
+      content: 'Third prompt content',
+      tags: []
+    })
+
+    promptRepo.reorderPrompts(profile.id, [second.id, third.id, first.id])
+
+    expect(promptRepo.listPrompts(profile.id).map((prompt) => prompt.id)).toEqual([
+      second.id,
+      third.id,
+      first.id
+    ])
+  })
 })

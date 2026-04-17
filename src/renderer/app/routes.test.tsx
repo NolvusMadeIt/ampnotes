@@ -39,6 +39,7 @@ function buildApiMock() {
       getById: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      reorder: vi.fn(),
       delete: vi.fn(),
       toggleFavorite: vi.fn(),
       togglePinned: vi.fn(),

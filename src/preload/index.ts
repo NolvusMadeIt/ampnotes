@@ -22,6 +22,7 @@ const api: ApiClient = {
     getById: (id) => invoke('prompt.getById', { id }),
     create: (profileId, input) => invoke('prompt.create', { profileId, input }),
     update: (profileId, input) => invoke('prompt.update', { profileId, input }),
+    reorder: (profileId, promptIds) => invoke('prompt.reorder', { profileId, promptIds }),
     delete: (profileId, id) => invoke('prompt.delete', { profileId, id }),
     toggleFavorite: (profileId, id) => invoke('prompt.toggleFavorite', { profileId, id }),
     togglePinned: (profileId, id) => invoke('prompt.togglePinned', { profileId, id }),

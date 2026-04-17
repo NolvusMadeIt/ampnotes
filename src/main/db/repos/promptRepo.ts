@@ -25,6 +25,7 @@ interface PromptRow {
   updated_at: string
   last_used_at: string | null
   use_count: number
+  display_order: number | null
   tags_csv: string | null
   validated_at: string | null
   validation_provider: string | null
@@ -108,6 +109,7 @@ function toPromptDTO(row: PromptRow): PromptDTO {
     updatedAt: row.updated_at,
     lastUsedAt: row.last_used_at,
     useCount: row.use_count,
+    displayOrder: row.display_order ?? 0,
     useCase: row.use_case ?? undefined,
     aiTarget: row.ai_target ?? undefined,
     refinedVersion: row.refined_version ?? undefined,
@@ -187,6 +189,16 @@ export class PromptRepo {
     `
   }
 
+  private nextDisplayOrder(profileId: string): number {
+    const row = this.db
+      .prepare<{ profileId: string }, { nextOrder: number }>(
+        'SELECT COALESCE(MIN(display_order), 0) - 1000 as nextOrder FROM prompts WHERE profile_id = @profileId'
+      )
+      .get({ profileId })
+
+    return row?.nextOrder ?? 0
+  }
+
   listPrompts(profileId: string, filters: PromptListFilters = {}): PromptDTO[] {
     const clauses = ['p.profile_id = @profileId']
     const params: Record<string, string | number> = {
@@ -216,7 +228,7 @@ export class PromptRepo {
       params.search = `%${filters.search.toLowerCase()}%`
     }
 
-    const sql = `${this.queryBase()} WHERE ${clauses.join(' AND ')} GROUP BY p.id ORDER BY p.pinned DESC, p.favorite DESC, p.updated_at DESC LIMIT @limit OFFSET @offset`
+    const sql = `${this.queryBase()} WHERE ${clauses.join(' AND ')} GROUP BY p.id ORDER BY COALESCE(p.display_order, 0) ASC, p.updated_at DESC LIMIT @limit OFFSET @offset`
 
     const rows = this.db.prepare(sql).all(params) as PromptRow[]
     return rows.map(toPromptDTO)
@@ -240,7 +252,7 @@ export class PromptRepo {
     const placeholders = promptIds.map(() => '?').join(', ')
     const rows = this.db
       .prepare(
-        `${this.queryBase()} WHERE p.profile_id = ? AND p.id IN (${placeholders}) GROUP BY p.id ORDER BY p.updated_at DESC`
+        `${this.queryBase()} WHERE p.profile_id = ? AND p.id IN (${placeholders}) GROUP BY p.id ORDER BY COALESCE(p.display_order, 0) ASC, p.updated_at DESC`
       )
       .all(profileId, ...promptIds) as PromptRow[]
 
@@ -259,9 +271,9 @@ export class PromptRepo {
     this.db
       .prepare(
         `INSERT INTO prompts
-          (id, profile_id, title, content, category, use_case, ai_target, refined_version, favorite, pinned, created_at, updated_at, last_used_at, use_count, validated_at, validation_provider, validation_model, validation_notes)
+          (id, profile_id, title, content, category, use_case, ai_target, refined_version, favorite, pinned, created_at, updated_at, last_used_at, use_count, display_order, validated_at, validation_provider, validation_model, validation_notes)
          VALUES
-          (@id, @profileId, @title, @content, @category, @useCase, @aiTarget, NULL, @favorite, @pinned, @now, @now, NULL, 0, NULL, NULL, NULL, NULL)`
+          (@id, @profileId, @title, @content, @category, @useCase, @aiTarget, NULL, @favorite, @pinned, @now, @now, NULL, 0, @displayOrder, NULL, NULL, NULL, NULL)`
       )
       .run({
         id,
@@ -273,6 +285,7 @@ export class PromptRepo {
         aiTarget: input.aiTarget?.trim() || null,
         favorite: input.favorite ? 1 : 0,
         pinned: input.pinned ? 1 : 0,
+        displayOrder: this.nextDisplayOrder(profileId),
         now
       })
 
@@ -343,6 +356,40 @@ export class PromptRepo {
 
   deletePrompt(profileId: string, promptId: string): void {
     this.db.prepare('DELETE FROM prompts WHERE id = ? AND profile_id = ?').run(promptId, profileId)
+  }
+
+  reorderPrompts(profileId: string, promptIds: string[]): PromptDTO[] {
+    const uniqueIds = [...new Set(promptIds)]
+    if (uniqueIds.length === 0) {
+      return this.listPrompts(profileId)
+    }
+
+    const placeholders = uniqueIds.map(() => '?').join(', ')
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) as count FROM prompts WHERE profile_id = ? AND id IN (${placeholders})`
+      )
+      .get(profileId, ...uniqueIds) as { count: number } | undefined
+
+    if ((row?.count ?? 0) !== uniqueIds.length) {
+      throw new Error('Cannot reorder prompts outside the active profile')
+    }
+
+    const updateOrder = this.db.prepare(
+      'UPDATE prompts SET display_order = @displayOrder WHERE id = @promptId AND profile_id = @profileId'
+    )
+    const applyOrder = this.db.transaction((ids: string[]) => {
+      ids.forEach((promptId, index) => {
+        updateOrder.run({
+          profileId,
+          promptId,
+          displayOrder: index * 1000
+        })
+      })
+    })
+
+    applyOrder(uniqueIds)
+    return this.listPrompts(profileId)
   }
 
   toggleFavorite(profileId: string, promptId: string): PromptDTO {
