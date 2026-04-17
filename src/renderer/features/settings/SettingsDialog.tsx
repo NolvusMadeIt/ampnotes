@@ -197,6 +197,7 @@ const BUILDER_FONT_OPTIONS = {
     ['ui-monospace, monospace', 'System Mono']
   ]
 } as const
+type BuilderFontKey = keyof typeof BUILDER_FONT_OPTIONS
 
 const DEFAULT_THEME_BUILDER = {
   id: 'theme.custom-system',
@@ -266,6 +267,7 @@ const DEFAULT_THEME_BUILDER = {
 
 type BuilderMode = 'light' | 'dark'
 type ThemeBuilderState = typeof DEFAULT_THEME_BUILDER
+type BuilderColorState = ThemeBuilderState[BuilderMode]
 
 function createThemeManifestFromBuilder(builder: ThemeBuilderState): CreateThemeManifestInput {
   return {
@@ -292,6 +294,39 @@ function createThemeManifestFromBuilder(builder: ThemeBuilderState): CreateTheme
         '--font-mono': builder.fontMono
       }
     }
+  }
+}
+
+function createBuilderColorsFromManifest(tokens: CreateThemeManifestInput['tokens'], mode: BuilderMode): BuilderColorState {
+  const colors = { ...DEFAULT_THEME_BUILDER[mode] }
+  THEME_BUILDER_FIELDS.forEach(([token]) => {
+    colors[token] = tokens[mode]?.[token] ?? colors[token]
+  })
+  return colors
+}
+
+function getSharedThemeToken(
+  tokens: CreateThemeManifestInput['tokens'],
+  key: string,
+  fallback: string
+): string {
+  return tokens.light?.[key] ?? tokens.dark?.[key] ?? fallback
+}
+
+function createThemeBuilderFromManifest(theme: CreateThemeManifestInput): ThemeBuilderState {
+  return {
+    ...DEFAULT_THEME_BUILDER,
+    id: theme.id || DEFAULT_THEME_BUILDER.id,
+    name: theme.name || DEFAULT_THEME_BUILDER.name,
+    version: theme.version || DEFAULT_THEME_BUILDER.version,
+    author: theme.author || DEFAULT_THEME_BUILDER.author,
+    light: createBuilderColorsFromManifest(theme.tokens, 'light'),
+    dark: createBuilderColorsFromManifest(theme.tokens, 'dark'),
+    radius: getSharedThemeToken(theme.tokens, '--radius-md', DEFAULT_THEME_BUILDER.radius),
+    shadow: getSharedThemeToken(theme.tokens, '--shadow-panel', DEFAULT_THEME_BUILDER.shadow),
+    fontSans: getSharedThemeToken(theme.tokens, '--font-sans', DEFAULT_THEME_BUILDER.fontSans),
+    fontSerif: getSharedThemeToken(theme.tokens, '--font-serif', DEFAULT_THEME_BUILDER.fontSerif),
+    fontMono: getSharedThemeToken(theme.tokens, '--font-mono', DEFAULT_THEME_BUILDER.fontMono)
   }
 }
 
@@ -414,7 +449,18 @@ export function SettingsDialog({
 
   const loadBuilderManifest = () => {
     setThemeManifestJson(JSON.stringify(createThemeManifestFromBuilder(themeBuilder), null, 2))
-    setEditingThemeId(null)
+  }
+
+  const loadManifestIntoBuilder = () => {
+    try {
+      const manifest = parseManifestJson<CreateThemeManifestInput>(themeManifestJson)
+      setThemeBuilder(createThemeBuilderFromManifest(manifest))
+      setEditingThemeId(manifest.id)
+      setMarketplaceError(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not read theme manifest.'
+      setMarketplaceError(message)
+    }
   }
 
   const renderBuilderTokenUsage = (token: ThemeBuilderToken, label: string) => {
@@ -910,7 +956,7 @@ export function SettingsDialog({
               <HelpTooltip text="Create, edit, activate, and share themes." />
             </h3>
             <p className="mt-1 text-sm text-muted">
-              Click <strong>Edit</strong> on an installed theme, update JSON, then save.
+              Click <strong>Edit</strong> on an installed theme to load it into the visual builder and manifest editor.
             </p>
           </div>
 
@@ -925,7 +971,11 @@ export function SettingsDialog({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">Theme Builder</p>
-                  <p className="mt-1 text-xs text-muted">Every token below has a matching preview so you can see where it appears.</p>
+                  <p className="mt-1 text-xs text-muted">
+                    {editingThemeId
+                      ? `Editing ${editingThemeId}. Change values here, then sync them to the manifest before saving.`
+                      : 'Every token below has a matching preview so you can see where it appears.'}
+                  </p>
                 </div>
                 <div className="inline-flex border border-line/20 bg-surface2">
                   {(['light', 'dark'] as BuilderMode[]).map((mode) => (
@@ -1007,7 +1057,7 @@ export function SettingsDialog({
                     ['fontSans', 'Interface font'],
                     ['fontSerif', 'Editorial font'],
                     ['fontMono', 'Code font']
-                  ] as const).map(([key, label]) => (
+                  ] as const satisfies readonly [BuilderFontKey, string][]).map(([key, label]) => (
                     <label key={key} className="block text-xs">
                       <span className="mb-1 block font-medium text-muted">{label}</span>
                       <select
@@ -1015,6 +1065,9 @@ export function SettingsDialog({
                         value={themeBuilder[key]}
                         onChange={(event) => setThemeBuilder((current) => ({ ...current, [key]: event.target.value }))}
                       >
+                        {!BUILDER_FONT_OPTIONS[key].some(([value]) => value === themeBuilder[key]) && (
+                          <option value={themeBuilder[key]}>Current manifest font</option>
+                        )}
                         {BUILDER_FONT_OPTIONS[key].map(([value, optionLabel]) => (
                           <option key={value} value={value}>{optionLabel}</option>
                         ))}
@@ -1056,9 +1109,16 @@ export function SettingsDialog({
                 </label>
               </details>
 
-              <Button size="sm" variant="primary" onClick={loadBuilderManifest}>
-                Load Builder JSON
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" onClick={loadBuilderManifest}>
+                  {editingThemeId ? 'Sync Builder to Manifest' : 'Create Manifest from Builder'}
+                </Button>
+                {themeManifestJson.trim() && (
+                  <Button size="sm" variant="secondary" onClick={loadManifestIntoBuilder}>
+                    Load Manifest into Builder
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div
@@ -1274,7 +1334,7 @@ export function SettingsDialog({
             <div className="flex items-center justify-between gap-2">
               <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
                 Theme Manifest
-                <HelpTooltip text="Required: id, name, version, tokens. Use Edit to update an existing theme." />
+                <HelpTooltip text="Advanced/raw JSON view. For visual changes, edit in the Theme Builder and sync back here before saving." />
               </p>
               <Button size="sm" variant="secondary" onClick={async () => copyJson(JSON.parse(THEME_MANIFEST_PLACEHOLDER))}>
                 Copy Example
@@ -1300,7 +1360,7 @@ export function SettingsDialog({
                   })
                 }
               >
-                {editingThemeId ? 'Update Theme Manifest' : 'Save Theme Manifest'}
+                {editingThemeId ? 'Update Theme' : 'Save Theme'}
               </Button>
               {editingThemeId && (
                 <Button
@@ -1309,6 +1369,7 @@ export function SettingsDialog({
                   onClick={() => {
                     setEditingThemeId(null)
                     setThemeManifestJson('')
+                    setThemeBuilder(DEFAULT_THEME_BUILDER)
                   }}
                 >
                   Cancel Edit
@@ -1353,8 +1414,10 @@ export function SettingsDialog({
                           size="sm"
                           variant="secondary"
                           onClick={() => {
+                            const manifest = toThemeManifestInput(themeItem)
                             setEditingThemeId(themeItem.id)
-                            setThemeManifestJson(JSON.stringify(toThemeManifestInput(themeItem), null, 2))
+                            setThemeBuilder(createThemeBuilderFromManifest(manifest))
+                            setThemeManifestJson(JSON.stringify(manifest, null, 2))
                           }}
                         >
                           Edit
