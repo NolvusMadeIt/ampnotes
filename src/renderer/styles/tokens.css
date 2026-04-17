@@ -1,0 +1,40 @@
+:root {
+  --font-sans: 'Merriweather', 'Source Serif 4', Georgia, serif;
+  --font-serif: 'Merriweather', 'Source Serif 4', Georgia, serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  --font-size-base: 100%;
+
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --surface-2: #f3f5f8;
+  --text: #11151d;
+  --text-muted: #5b6779;
+  --border: #a7b2c4;
+  --accent: #4f7cff;
+  --accent-contrast: #ffffff;
+  --success: #1e8a66;
+  --warning: #9b6a2d;
+  --danger: #a54842;
+  --ambient-a: rgba(79, 124, 255, 0.08);
+  --ambient-b: rgba(67, 83, 104, 0.06);
+  --ambient-overlay: rgba(255, 255, 255, 0.24);
+  --shadow-panel: 0 1px 1px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+:root[data-theme='dark'] {
+  --bg: #0a0d12;
+  --surface: #11151d;
+  --surface-2: #151c27;
+  --text: #e7edf8;
+  --text-muted: #98a7bc;
+  --border: #1f2734;
+  --accent: #6a8bff;
+  --accent-contrast: #0c1428;
+  --success: #4cb792;
+  --warning: #cc9b58;
+  --danger: #d97a73;
+  --ambient-a: rgba(106, 139, 255, 0.06);
+  --ambient-b: rgba(38, 49, 67, 0.08);
+  --ambient-overlay: rgba(7, 10, 14, 0.2);
+  --shadow-panel: 0 1px 1px rgba(0, 0, 0, 0.16), 0 12px 28px rgba(0, 0, 0, 0.24);
+}

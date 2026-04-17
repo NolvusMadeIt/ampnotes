@@ -1,0 +1,32 @@
+import type { Config } from 'tailwindcss'
+
+export default {
+  darkMode: ['class', '[data-theme="dark"]'],
+  content: ['./src/renderer/**/*.{ts,tsx,html}'],
+  theme: {
+    extend: {
+      colors: {
+        bg: 'rgb(from var(--bg) r g b / <alpha-value>)',
+        surface: 'rgb(from var(--surface) r g b / <alpha-value>)',
+        surface2: 'rgb(from var(--surface-2) r g b / <alpha-value>)',
+        text: 'rgb(from var(--text) r g b / <alpha-value>)',
+        muted: 'rgb(from var(--text-muted) r g b / <alpha-value>)',
+        border: 'rgb(from var(--border) r g b / <alpha-value>)',
+        line: 'rgb(from var(--border) r g b / <alpha-value>)',
+        accent: 'rgb(from var(--accent) r g b / <alpha-value>)',
+        accentContrast: 'rgb(from var(--accent-contrast) r g b / <alpha-value>)',
+        success: 'rgb(from var(--success) r g b / <alpha-value>)',
+        warning: 'rgb(from var(--warning) r g b / <alpha-value>)',
+        danger: 'rgb(from var(--danger) r g b / <alpha-value>)'
+      },
+      borderRadius: {
+        lg: '14px',
+        xl: '18px'
+      },
+      boxShadow: {
+        panel: 'var(--shadow-panel)'
+      }
+    }
+  },
+  plugins: []
+} satisfies Config
