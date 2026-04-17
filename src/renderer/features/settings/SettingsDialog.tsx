@@ -468,6 +468,155 @@ export function SettingsDialog({
             </div>
           )}
 
+          <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
+                Plugin Manifest
+                <HelpTooltip text="Required: id, name, version. Optional: author, entry, homepage, permissions." />
+              </p>
+              <Button size="sm" variant="secondary" onClick={async () => copyJson(JSON.parse(PLUGIN_MANIFEST_PLACEHOLDER))}>
+                Copy Example
+              </Button>
+            </div>
+            <textarea
+              className="min-h-[360px] w-full rounded-lg border border-line/20 bg-surface2 px-3 py-2 text-xs outline-none focus:border-accent/10"
+              placeholder={PLUGIN_MANIFEST_PLACEHOLDER}
+              value={pluginManifestJson}
+              onChange={(event) => setPluginManifestJson(event.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busyKey === 'register-plugin'}
+                onClick={async () =>
+                  runAction('register-plugin', async () => {
+                    const manifest = parseManifestJson<CreatePluginManifestInput>(pluginManifestJson)
+                    await onRegisterPlugin(manifest)
+                    setPluginManifestJson('')
+                    setEditingPluginId(null)
+                  })
+                }
+              >
+                {editingPluginId ? 'Update Plugin Manifest' : 'Save Plugin Manifest'}
+              </Button>
+              {editingPluginId && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setEditingPluginId(null)
+                    setPluginManifestJson('')
+                  }}
+                >
+                  Cancel Edit
+                </Button>
+              )}
+            </div>
+          </article>
+
+          <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
+            <p className="text-sm font-semibold">Installed Plugins</p>
+            {marketplaceState.plugins.length === 0 ? (
+              <p className="text-sm text-muted">No plugins added yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {marketplaceState.plugins.map((plugin) => (
+                  <div
+                    key={plugin.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line/20 bg-surface2 p-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        {plugin.name} <span className="text-muted">v{plugin.version}</span>
+                      </p>
+                      <p className="text-xs text-muted">{plugin.id}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant={plugin.enabled ? 'secondary' : 'primary'}
+                        disabled={busyKey === `plugin-${plugin.id}`}
+                        onClick={async () =>
+                          runAction(`plugin-${plugin.id}`, async () => {
+                            await onTogglePlugin(plugin.id, !plugin.enabled)
+                          })
+                        }
+                        >
+                          {plugin.enabled ? 'Disable' : 'Enable'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingPluginId(plugin.id)
+                          setPluginManifestJson(JSON.stringify(toPluginManifestInput(plugin), null, 2))
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busyKey === `plugin-folder-${plugin.id}`}
+                        onClick={async () =>
+                          runAction(`plugin-folder-${plugin.id}`, async () => {
+                            const result = await onOpenPluginFolder(plugin.id)
+                            if (!result.ok) {
+                              throw new Error(result.reason ?? 'Could not open plugin folder')
+                            }
+                          })
+                        }
+                      >
+                        <FolderOpen size={14} className="mr-2" />
+                        Open Folder
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={async () => copyJson(plugin)}>
+                        Copy JSON
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={busyKey === `plugin-remove-${plugin.id}`}
+                        onClick={async () =>
+                          runAction(`plugin-remove-${plugin.id}`, async () => {
+                            await onRemovePlugin(plugin.id)
+                            if (editingPluginId === plugin.id) {
+                              setEditingPluginId(null)
+                              setPluginManifestJson('')
+                            }
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </article>
+        </section>
+      )}
+
+      {showThemes && (
+        <section className="space-y-4 rounded-xl border border-line/20 bg-surface2 p-4">
+          <div>
+            <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+              Themes
+              <HelpTooltip text="Create, edit, activate, and share themes." />
+            </h3>
+            <p className="mt-1 text-sm text-muted">
+              Click <strong>Edit</strong> on an installed theme, update JSON, then save.
+            </p>
+          </div>
+
+          {marketplaceError && (
+            <div className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {marketplaceError}
+            </div>
+          )}
+
           <article className="grid gap-4 rounded-lg border border-line/20 bg-surface p-3 xl:grid-cols-[minmax(320px,0.9fr)_minmax(420px,1.1fr)]">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -669,155 +818,6 @@ export function SettingsDialog({
               </div>
             </div>
           </article>
-
-          <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                Plugin Manifest
-                <HelpTooltip text="Required: id, name, version. Optional: author, entry, homepage, permissions." />
-              </p>
-              <Button size="sm" variant="secondary" onClick={async () => copyJson(JSON.parse(PLUGIN_MANIFEST_PLACEHOLDER))}>
-                Copy Example
-              </Button>
-            </div>
-            <textarea
-              className="min-h-[360px] w-full rounded-lg border border-line/20 bg-surface2 px-3 py-2 text-xs outline-none focus:border-accent/10"
-              placeholder={PLUGIN_MANIFEST_PLACEHOLDER}
-              value={pluginManifestJson}
-              onChange={(event) => setPluginManifestJson(event.target.value)}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={busyKey === 'register-plugin'}
-                onClick={async () =>
-                  runAction('register-plugin', async () => {
-                    const manifest = parseManifestJson<CreatePluginManifestInput>(pluginManifestJson)
-                    await onRegisterPlugin(manifest)
-                    setPluginManifestJson('')
-                    setEditingPluginId(null)
-                  })
-                }
-              >
-                {editingPluginId ? 'Update Plugin Manifest' : 'Save Plugin Manifest'}
-              </Button>
-              {editingPluginId && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setEditingPluginId(null)
-                    setPluginManifestJson('')
-                  }}
-                >
-                  Cancel Edit
-                </Button>
-              )}
-            </div>
-          </article>
-
-          <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
-            <p className="text-sm font-semibold">Installed Plugins</p>
-            {marketplaceState.plugins.length === 0 ? (
-              <p className="text-sm text-muted">No plugins added yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {marketplaceState.plugins.map((plugin) => (
-                  <div
-                    key={plugin.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line/20 bg-surface2 p-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium">
-                        {plugin.name} <span className="text-muted">v{plugin.version}</span>
-                      </p>
-                      <p className="text-xs text-muted">{plugin.id}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant={plugin.enabled ? 'secondary' : 'primary'}
-                        disabled={busyKey === `plugin-${plugin.id}`}
-                        onClick={async () =>
-                          runAction(`plugin-${plugin.id}`, async () => {
-                            await onTogglePlugin(plugin.id, !plugin.enabled)
-                          })
-                        }
-                        >
-                          {plugin.enabled ? 'Disable' : 'Enable'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setEditingPluginId(plugin.id)
-                          setPluginManifestJson(JSON.stringify(toPluginManifestInput(plugin), null, 2))
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={busyKey === `plugin-folder-${plugin.id}`}
-                        onClick={async () =>
-                          runAction(`plugin-folder-${plugin.id}`, async () => {
-                            const result = await onOpenPluginFolder(plugin.id)
-                            if (!result.ok) {
-                              throw new Error(result.reason ?? 'Could not open plugin folder')
-                            }
-                          })
-                        }
-                      >
-                        <FolderOpen size={14} className="mr-2" />
-                        Open Folder
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={async () => copyJson(plugin)}>
-                        Copy JSON
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        disabled={busyKey === `plugin-remove-${plugin.id}`}
-                        onClick={async () =>
-                          runAction(`plugin-remove-${plugin.id}`, async () => {
-                            await onRemovePlugin(plugin.id)
-                            if (editingPluginId === plugin.id) {
-                              setEditingPluginId(null)
-                              setPluginManifestJson('')
-                            }
-                          })
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
-        </section>
-      )}
-
-      {showThemes && (
-        <section className="space-y-4 rounded-xl border border-line/20 bg-surface2 p-4">
-          <div>
-            <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
-              Themes
-              <HelpTooltip text="Create, edit, activate, and share themes." />
-            </h3>
-            <p className="mt-1 text-sm text-muted">
-              Click <strong>Edit</strong> on an installed theme, update JSON, then save.
-            </p>
-          </div>
-
-          {marketplaceError && (
-            <div className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {marketplaceError}
-            </div>
-          )}
 
           <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
             <div className="flex items-center justify-between gap-2">
