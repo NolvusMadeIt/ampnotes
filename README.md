@@ -15,6 +15,7 @@ The app is intentionally shaped like a mix of OneNote, Joplin, and Notion: a not
 - Theme builder with live previews for foundation, interactive, status, chart, sidebar, popover, and input tokens.
 - Plugin and theme manifests are stored as local files with folder-open actions for advanced editing.
 - Desktop window size and position are remembered between launches.
+- Static GitHub Pages marketplace prototype for showcasing and exporting themes/plugins lives in `docs/`.
 
 ## Development
 
@@ -42,6 +43,8 @@ npm run dev
 ## Marketplace Roadmap
 
 The footer includes a placeholder Marketplace link. The future marketplace website is planned to support prompt, template, plugin, and theme submission/download flows while keeping local-first usage intact.
+
+The repo includes a static prototype at `docs/index.html` for GitHub Pages. It uses the AMP `Custom System` light/dark theme tokens and lets users stage theme/plugin listings with title, description, image, manifest JSON, and export actions.
 
 ## Contributing
 

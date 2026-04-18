@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, FolderOpen } from 'lucide-react'
 import type {
   AppearanceSettingsDTO,
@@ -398,8 +398,10 @@ export function SettingsDialog({
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null)
   const [themeBuilder, setThemeBuilder] = useState<ThemeBuilderState>(DEFAULT_THEME_BUILDER)
   const [builderMode, setBuilderMode] = useState<BuilderMode>('light')
+  const [activeBuilderToken, setActiveBuilderToken] = useState<ThemeBuilderToken | null>(null)
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const tokenPreviewRefs = useRef<Partial<Record<ThemeBuilderToken, HTMLDivElement | null>>>({})
 
   const activeThemeName = useMemo(() => {
     const active = marketplaceState.themes.find((item) => item.id === marketplaceState.activeThemeId)
@@ -410,6 +412,23 @@ export function SettingsDialog({
   const showPlugins = section === 'plugins' || section === 'all'
   const showThemes = section === 'themes' || section === 'all'
   const builderColors = themeBuilder[builderMode]
+  const activeTokenLabel = useMemo(() => {
+    if (!activeBuilderToken) {
+      return null
+    }
+    return THEME_BUILDER_FIELDS.find(([token]) => token === activeBuilderToken)?.[1] ?? activeBuilderToken
+  }, [activeBuilderToken])
+
+  useEffect(() => {
+    if (!activeBuilderToken) {
+      return
+    }
+    tokenPreviewRefs.current[activeBuilderToken]?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+      inline: 'nearest'
+    })
+  }, [activeBuilderToken])
 
   useEffect(() => {
     setFontScaleDraft(appearance.fontScale)
@@ -1018,7 +1037,15 @@ export function SettingsDialog({
                       <p className="mono-meta text-[10px] uppercase tracking-[0.18em] text-muted">{section.title}</p>
                       <div className="grid gap-2 md:grid-cols-2">
                         {section.fields.map(([token, label, description]) => (
-                          <label key={token} className="block border border-line/20 bg-surface2 p-2 text-xs">
+                          <label
+                            key={token}
+                            className={`block cursor-pointer border p-2 text-xs transition-colors ${
+                              activeBuilderToken === token
+                                ? 'border-accent/40 bg-accent/10'
+                                : 'border-line/20 bg-surface2 hover:border-accent/20'
+                            }`}
+                            onClick={() => setActiveBuilderToken(token)}
+                          >
                             <span className="mb-2 flex items-start justify-between gap-3">
                               <span>
                                 <span className="block font-semibold text-text">{label}</span>
@@ -1034,11 +1061,13 @@ export function SettingsDialog({
                                 type="color"
                                 className="h-9 w-10 border border-line/20 bg-surface"
                                 value={builderColors[token]}
+                                onFocus={() => setActiveBuilderToken(token)}
                                 onChange={(event) => updateBuilderToken(builderMode, token, event.target.value)}
                               />
                               <input
                                 className="h-9 min-w-0 flex-1 border border-line/20 bg-surface px-2 font-mono outline-none focus:border-accent/10"
                                 value={builderColors[token]}
+                                onFocus={() => setActiveBuilderToken(token)}
                                 onChange={(event) => updateBuilderToken(builderMode, token, event.target.value)}
                               />
                             </span>
@@ -1136,6 +1165,12 @@ export function SettingsDialog({
                   <span>Preview</span>
                   <span>/</span>
                   <span>Design System</span>
+                  {activeTokenLabel && (
+                    <>
+                      <span>/</span>
+                      <span style={{ color: builderColors['--text'] }}>{activeTokenLabel}</span>
+                    </>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -1299,11 +1334,17 @@ export function SettingsDialog({
                         {section.fields.map(([token, label, description]) => (
                           <div
                             key={token}
-                            className="p-2 text-xs"
+                            ref={(node) => {
+                              tokenPreviewRefs.current[token] = node
+                            }}
+                            className="p-2 text-xs transition-shadow"
                             style={{
                               background: builderColors['--surface'],
-                              border: `1px solid ${builderColors['--border']}`,
-                              borderRadius: themeBuilder.radius
+                              border: `1px solid ${
+                                activeBuilderToken === token ? builderColors['--accent'] : builderColors['--border']
+                              }`,
+                              borderRadius: themeBuilder.radius,
+                              boxShadow: activeBuilderToken === token ? `0 0 0 3px ${builderColors['--accent']}22` : 'none'
                             }}
                           >
                             <div className="flex items-start justify-between gap-3">

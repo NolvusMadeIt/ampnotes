@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AMP Marketplace</title>
+    <meta
+      name="description"
+      content="A local-first AMP marketplace preview for sharing prompt themes and plugins."
+    />
+    <link rel="stylesheet" href="./marketplace.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="Main navigation">
+        <a class="brand" href="#top" aria-label="AMP Marketplace home">
+          <span class="brand-mark">AMP</span>
+          <span>Marketplace</span>
+        </a>
+        <div class="nav-actions">
+          <button class="mode-toggle" type="button" data-theme-toggle>Dark</button>
+          <a class="nav-link" href="#submit">Submit</a>
+          <a class="nav-link" href="#gallery">Gallery</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">All My Prompts</p>
+          <h1>Share AMP themes and plugins with a showcase that feels worth browsing.</h1>
+          <p>
+            Preview community-made themes, export manifests, and stage plugin submissions before the full AMP
+            marketplace goes live.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#submit">Submit a resource</a>
+            <a class="button secondary" href="#gallery">Browse showcase</a>
+          </div>
+        </div>
+        <aside class="hero-panel" aria-label="Theme preview">
+          <div class="panel-topline">
+            <span>Custom System</span>
+            <span>v1.0.0</span>
+          </div>
+          <div class="preview-window">
+            <div class="preview-sidebar">
+              <strong>AMP</strong>
+              <span class="active-pill">Themes</span>
+              <span>Plugins</span>
+              <span>Templates</span>
+            </div>
+            <div class="preview-main">
+              <div class="metric-card">
+                <small>Total Downloads</small>
+                <strong>12,480</strong>
+                <div class="mini-bars" aria-hidden="true">
+                  <span></span><span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+              <div class="status-grid">
+                <span class="status success">Ready</span>
+                <span class="status warning">Review</span>
+                <span class="status danger">Blocked</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="toolbar" aria-label="Marketplace filters">
+        <div>
+          <p class="eyebrow">Showcase</p>
+          <h2>Community-ready resources</h2>
+        </div>
+        <div class="filter-row" role="group" aria-label="Filter resources">
+          <button class="filter is-active" type="button" data-filter="all">All</button>
+          <button class="filter" type="button" data-filter="theme">Themes</button>
+          <button class="filter" type="button" data-filter="plugin">Plugins</button>
+        </div>
+      </section>
+
+      <section id="gallery" class="showcase-grid" aria-live="polite"></section>
+
+      <section id="submit" class="submit-section">
+        <div class="submit-copy">
+          <p class="eyebrow">Submit</p>
+          <h2>Stage a theme or plugin listing.</h2>
+          <p>
+            Add a title, description, image, and manifest. This prototype stores listings locally and exports a
+            marketplace-ready JSON package.
+          </p>
+        </div>
+
+        <form class="submit-form" data-submit-form>
+          <div class="field-grid">
+            <label>
+              Type
+              <select name="type">
+                <option value="theme">Theme</option>
+                <option value="plugin">Plugin</option>
+              </select>
+            </label>
+            <label>
+              Title
+              <input name="title" type="text" value="Custom System" required />
+            </label>
+          </div>
+
+          <label>
+            Short description
+            <textarea name="description" rows="3" required>Clean light and dark design-system tokens created with the AMP theme builder.</textarea>
+          </label>
+
+          <div class="field-grid">
+            <label>
+              Author
+              <input name="author" type="text" value="NolvusMadeIt" required />
+            </label>
+            <label>
+              Preview image
+              <input name="image" type="file" accept="image/*" />
+            </label>
+          </div>
+
+          <label>
+            Manifest JSON
+            <textarea name="manifest" rows="14" spellcheck="false" required></textarea>
+          </label>
+
+          <div class="form-actions">
+            <button class="button primary" type="submit">Add to showcase</button>
+            <button class="button secondary" type="button" data-export-current>Export manifest</button>
+            <button class="button secondary" type="button" data-export-gallery>Export gallery JSON</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>© 2026 AMP</span>
+      <span>Marketplace prototype for themes and plugins</span>
+    </footer>
+
+    <script src="./marketplace.js"></script>
+  </body>
+</html>

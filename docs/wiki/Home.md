@@ -18,6 +18,8 @@ Share/export only includes selected prompts and templates. Prompts must pass req
 
 The Marketplace footer link is a placeholder until the community site is available. Future marketplace flows are planned for prompts, templates, plugins, and themes.
 
+The repository also includes a static GitHub Pages prototype in `docs/index.html`. It previews the AMP Custom System theme, supports light/dark mode, and lets contributors stage a local theme/plugin listing with title, description, preview image, manifest JSON, and export buttons.
+
 ## Local Data
 
 AMP stores app data locally in SQLite. Groq API keys are stored in the OS keychain.
