@@ -4,6 +4,22 @@ Thanks for contributing to **AMP (All My Prompts)**.
 
 AMP is built for real prompt operations, not just demos. Contributions should keep that standard: readable UX, reliable behavior, and safe manifest handling.
 
+## Branch Policy (Required)
+
+- Direct pushes to `main` are blocked by repository branch protection.
+- All work must be done on a feature/fix branch and merged via Pull Request.
+- At least one approving review is required before `main` can be updated.
+- Admin bypass is disabled by policy; approvals are required for everyone.
+
+### Standard Flow
+
+```bash
+git checkout -b feat/your-change
+git push -u origin feat/your-change
+```
+
+Then open a Pull Request into `main` and request review.
+
 ## Development Setup
 
 ```bash
