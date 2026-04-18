@@ -1,8 +1,22 @@
-# AmpNotes
+# AMP
 
-Desktop-first prompt notebook built with Electron + React + TypeScript + Tailwind.
+AMP means **All My Prompts**. It is a desktop-first prompt notebook for writing, reading, improving, validating, sharing, and organizing prompts without making the workflow feel like a settings panel.
 
-## Run
+The app is intentionally shaped like a mix of OneNote, Joplin, and Notion: a notebook navigation column, a page list column, and a readable center workspace that can switch between home feed, read view, and edit mode.
+
+## Highlights
+
+- Three-column notebook layout with responsive fallback for smaller screens.
+- Blog-style prompt reading on click, with explicit edit/use actions when the user wants to build.
+- Markdown-first prompt editor with formatting controls and plugin token support.
+- Local templates with create, edit, delete, and add-from-prompt workflows.
+- Groq-powered prompt improvement and validation when the user adds an API key.
+- Share/import flow with required validation and selected prompt/template exports.
+- Theme builder with live previews for foundation, interactive, status, chart, sidebar, popover, and input tokens.
+- Plugin and theme manifests are stored as local files with folder-open actions for advanced editing.
+- Desktop window size and position are remembered between launches.
+
+## Development
 
 ```bash
 npm install
@@ -11,24 +25,28 @@ npm run dev
 
 ## Scripts
 
-- `npm run dev` start Electron dev environment
-- `npm run build` build `out/main`, `out/preload`, and `out/renderer`
-- `npm run typecheck` run TypeScript checks
-- `npm test` run Vitest suites
+- `npm run dev` starts the Electron development environment.
+- `npm run build` builds `out/main`, `out/preload`, and `out/renderer`.
+- `npm run typecheck` runs TypeScript checks.
+- `npm test` runs the Vitest suites.
+- `npm run rebuild:native` rebuilds Electron native modules such as `better-sqlite3`.
 
-## MVP implemented
+## Data And Security
 
-- Local multi-profile create/sign-in/sign-out with persisted session
-- Prompt CRUD with pin/star/search/recent usage and copy-to-clipboard workflow
-- Tag/category support and template starter prompts
-- Tri-pane desktop layout with responsive fallback
-- Theme system (light/dark/system) with tokenized design language
-- Optional Groq-based prompt refinement with compare/apply flow
-- Local sharing/import: encoded share codes + JSON/TXT import/export
-- IPC contract-first architecture (`profile.*`, `prompt.*`, `tag.*`, `search.*`, `refine.*`, `share.*`, `settings.*`)
+- Core data is stored locally in SQLite through the Electron main process.
+- Groq API keys are stored in the OS keychain through `keytar`.
+- Plugin and theme manifests are validated before storage.
+- Theme tokens reject unsafe CSS patterns such as `url(`, `@import`, and `expression(`.
+- Sharing/export validates required prompt metadata before anything leaves the app.
 
-## Notes
+## Marketplace Roadmap
 
-- Core data is stored in SQLite (`better-sqlite3`) in Electron main process.
-- Groq API keys are stored in OS keychain via `keytar`.
-- Future cloud short-code sharing can be added without breaking share package format.
+The footer includes a placeholder Marketplace link. The future marketplace website is planned to support prompt, template, plugin, and theme submission/download flows while keeping local-first usage intact.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, security expectations, and review guidelines.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

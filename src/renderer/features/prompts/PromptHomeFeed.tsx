@@ -43,8 +43,8 @@ export function PromptHomeFeed({
   }
 
   return (
-    <section className="scroll-y h-full min-h-[420px] overflow-y-auto bg-bg px-4 py-4 sm:px-6">
-      <div className="mx-auto grid w-full max-w-4xl gap-4">
+    <section className="scroll-y h-full min-h-[420px] overflow-y-auto bg-bg px-3 py-4 sm:px-4 xl:px-6">
+      <div className="mx-auto grid w-full max-w-6xl gap-4">
         {prompts.map((prompt) => {
           const label = providerName(prompt)
           const isGroq = label.toLowerCase() === 'groq'

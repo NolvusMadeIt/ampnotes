@@ -1,9 +1,9 @@
 {
   "name": "ampnotes",
   "version": "0.1.0",
-  "description": "Desktop-first prompt management app built with Electron, React, TypeScript, and Tailwind.",
+  "description": "AMP, All My Prompts: a desktop-first prompt notebook for writing, validating, sharing, and extending prompts.",
   "main": "out/main/index.js",
-  "author": "",
+  "author": "NolvusMadeIt",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -53,7 +53,7 @@
   },
   "build": {
     "appId": "com.ampnotes.desktop",
-    "productName": "AmpNotes",
+    "productName": "AMP",
     "files": [
       "out/**",
       "package.json"

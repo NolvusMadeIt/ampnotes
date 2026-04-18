@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { ClipboardCopy, Download, FileJson, FileText, Upload } from 'lucide-react'
 import type { PromptDTO, TemplateDTO } from '@shared/types'
 import { validatePromptForShare } from '@shared/validation/prompt'
 import { Button } from '@renderer/components/ui/Button'
@@ -38,6 +39,7 @@ export function ShareDialog({
   const activePrompt = prompt
   const shareIssues = prompt ? validatePromptForShare(prompt) : []
   const canShare = Boolean(activePrompt) && shareIssues.length === 0
+  const selectedCount = selectedPromptIds.length + selectedTemplateIds.length
 
   useEffect(() => {
     if (!open) {
@@ -57,7 +59,7 @@ export function ShareDialog({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Share and Import" widthClass="max-w-5xl">
+    <Modal open={open} onClose={onClose} title="Share / Import" widthClass="max-w-5xl">
       <div className="grid gap-6 md:grid-cols-2">
         <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
           <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
@@ -71,12 +73,15 @@ export function ShareDialog({
             <>
               <div className="flex flex-wrap gap-2">
                 <Button variant="primary" onClick={async () => onGenerate(activePrompt.id)}>
+                  <ClipboardCopy size={15} className="mr-2" />
                   Generate Code
                 </Button>
                 <Button variant="secondary" onClick={async () => onExport(activePrompt.id, 'json')}>
+                  <FileJson size={15} className="mr-2" />
                   Export JSON
                 </Button>
                 <Button variant="secondary" onClick={async () => onExport(activePrompt.id, 'txt')}>
+                  <FileText size={15} className="mr-2" />
                   Export TXT
                 </Button>
               </div>
@@ -105,6 +110,9 @@ export function ShareDialog({
             Export selected items
             <HelpTooltip text="Only selected prompts/templates are exported. Selected prompts must pass required sharing validation." />
           </h3>
+          <p className="text-sm text-muted">
+            Choose exactly what leaves the app. Nothing unselected is included in the export package.
+          </p>
           <div className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Prompts</p>
             <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
@@ -145,7 +153,8 @@ export function ShareDialog({
               })
             }}
           >
-            Export Selected JSON
+            <Download size={15} className="mr-2" />
+            Export Selected JSON{selectedCount > 0 ? ` (${selectedCount})` : ''}
           </Button>
         </section>
       </div>
@@ -169,9 +178,11 @@ export function ShareDialog({
                 setImportCode('')
               }}
             >
+              <Upload size={15} className="mr-2" />
               Import Code
             </Button>
             <Button variant="secondary" onClick={onImportFile}>
+              <FileJson size={15} className="mr-2" />
               Import File
             </Button>
           </div>

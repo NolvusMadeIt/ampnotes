@@ -4,6 +4,7 @@ import {
   Heart,
   Import,
   LayoutGrid,
+  ShoppingBag,
   PanelLeftClose,
   PanelLeftOpen,
   Palette,
@@ -1233,12 +1234,12 @@ export default function Routes() {
                       dragging={draggingPromptId === prompt.id}
                       onSelect={() => {
                         setSelectedPromptId(prompt.id)
-                        setPromptDetailMode(nav === 'all' ? 'home' : 'read')
+                        setPromptDetailMode('read')
                       }}
                       onContextMenu={(event) => {
                         event.preventDefault()
                         setSelectedPromptId(prompt.id)
-                        setPromptDetailMode(nav === 'all' ? 'home' : 'read')
+                        setPromptDetailMode('read')
                         setContextMenu({
                           x: event.clientX,
                           y: event.clientY,
@@ -1332,6 +1333,17 @@ export default function Routes() {
             <span className="hidden sm:block" />
             <p className="text-center">© {new Date().getFullYear()} AMP</p>
             <div className="flex items-center justify-center gap-3 sm:justify-self-end">
+              <a
+                href="#"
+                className="inline-flex items-center gap-1.5 font-medium text-muted transition-colors hover:text-text"
+                onClick={(event) => event.preventDefault()}
+              >
+                <ShoppingBag size={14} />
+                Marketplace
+              </a>
+              <span aria-hidden className="text-border">
+                |
+              </span>
               <button
                 type="button"
                 className="font-medium text-muted transition-colors hover:text-text"

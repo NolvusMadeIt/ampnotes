@@ -12,9 +12,9 @@ interface AppShellProps {
 
 const SIDEBAR_EXPANDED_WIDTH = 250
 const SIDEBAR_COLLAPSED_WIDTH = 86
-const DEFAULT_LIST_WIDTH = 360
-const MIN_LIST_WIDTH = 280
-const MIN_DETAIL_WIDTH = 420
+const DEFAULT_LIST_WIDTH = 420
+const MIN_LIST_WIDTH = 380
+const MIN_DETAIL_WIDTH = 560
 const LIST_WIDTH_STORAGE_KEY = 'ampnotes.layout.list.width'
 const WIDE_LAYOUT_BREAKPOINT = 1536
 
@@ -151,7 +151,7 @@ export function AppShell({
             </button>
           )}
         </section>
-        {detailVisible && <section className="hidden min-h-0 bg-surface/90 p-4 2xl:block">{detail}</section>}
+        {detailVisible && <section className="hidden min-h-0 bg-surface/90 p-4 2xl:block 2xl:p-6">{detail}</section>}
       </div>
       {footer && <footer className="bg-surface/95 px-3 py-2 sm:px-4">{footer}</footer>}
     </div>

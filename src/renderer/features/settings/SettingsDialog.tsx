@@ -1466,11 +1466,11 @@ export function SettingsDialog({
   )
 
   if (asPage) {
-    return <section className="mx-auto max-w-5xl">{body}</section>
+    return <section className="mx-auto w-full max-w-7xl">{body}</section>
   }
 
   return (
-    <Modal open={open} onClose={onClose ?? (() => undefined)} title="Settings" widthClass="max-w-5xl">
+    <Modal open={open} onClose={onClose ?? (() => undefined)} title="Settings" widthClass="max-w-7xl">
       {body}
     </Modal>
   )

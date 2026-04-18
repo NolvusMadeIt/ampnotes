@@ -10,7 +10,7 @@ export function TermsOfServicePage() {
       <section className="mt-6 space-y-2">
         <h2 className="editorial-heading text-xl font-semibold">1. Product Definition</h2>
         <p className="text-sm text-muted">
-          AMP means <strong>Adaptive Markdown Prompts</strong>, a prompt-writing and sharing app created by
+          AMP means <strong>All My Prompts</strong>, a prompt-writing and sharing app created by
           <strong> NolvusMadeIt</strong>.
         </p>
       </section>
@@ -40,7 +40,15 @@ export function TermsOfServicePage() {
       </section>
 
       <section className="mt-6 space-y-2">
-        <h2 className="editorial-heading text-xl font-semibold">5. Warranty and Liability</h2>
+        <h2 className="editorial-heading text-xl font-semibold">5. Marketplace</h2>
+        <p className="text-sm text-muted">
+          The AMP Marketplace link is a placeholder until the community website is released. Marketplace submissions,
+          downloads, and publishing rules may receive additional terms before launch.
+        </p>
+      </section>
+
+      <section className="mt-6 space-y-2">
+        <h2 className="editorial-heading text-xl font-semibold">6. Warranty and Liability</h2>
         <p className="text-sm text-muted">
           AMP is provided "as is" without guarantees of uninterrupted service, security, or fitness for a specific
           purpose. Use at your own discretion.
