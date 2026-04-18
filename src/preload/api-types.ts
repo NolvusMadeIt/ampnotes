@@ -8,6 +8,7 @@ import type {
   InstalledPluginDTO,
   InstalledThemeDTO,
   MarketplaceFolderResult,
+  MarketplaceTransferResult,
   AppearanceSettingsDTO,
   MarketplaceStateDTO,
   ProfileDTO,
@@ -104,10 +105,16 @@ export interface ApiClient {
   marketplace: {
     getState: (profileId: string) => Promise<MarketplaceStateDTO>
     registerPlugin: (profileId: string, manifest: CreatePluginManifestInput) => Promise<InstalledPluginDTO>
+    importPluginManifestFile: (profileId: string) => Promise<MarketplaceTransferResult>
+    importPluginFromFolder: (profileId: string) => Promise<MarketplaceTransferResult>
+    exportPluginManifest: (profileId: string, pluginId: string) => Promise<MarketplaceTransferResult>
     setPluginEnabled: (profileId: string, pluginId: string, enabled: boolean) => Promise<InstalledPluginDTO>
     removePlugin: (profileId: string, pluginId: string) => Promise<{ ok: boolean }>
     openPluginFolder: (profileId: string, pluginId: string) => Promise<MarketplaceFolderResult>
     registerTheme: (profileId: string, manifest: CreateThemeManifestInput) => Promise<InstalledThemeDTO>
+    importThemeManifestFile: (profileId: string) => Promise<MarketplaceTransferResult>
+    importThemeFromFolder: (profileId: string) => Promise<MarketplaceTransferResult>
+    exportThemeManifest: (profileId: string, themeId: string) => Promise<MarketplaceTransferResult>
     setActiveTheme: (profileId: string, themeId: string | null) => Promise<string | null>
     removeTheme: (profileId: string, themeId: string) => Promise<{ ok: boolean }>
     openThemeFolder: (profileId: string, themeId: string) => Promise<MarketplaceFolderResult>

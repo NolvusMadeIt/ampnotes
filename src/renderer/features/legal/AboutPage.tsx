@@ -1,34 +1,57 @@
 export function AboutPage() {
   return (
-    <article className="rounded-xl border border-line/20 bg-surface p-5 sm:p-6">
-      <p className="mono-meta text-xs uppercase tracking-[0.22em] text-muted">About</p>
-      <h1 className="editorial-heading mt-2 text-3xl font-semibold">AMP</h1>
-      <p className="mt-3 text-sm text-muted">
-        AMP stands for <strong>All My Prompts</strong>. It is built for writing, improving, validating, and sharing
-        prompts with a clean notebook-style workflow.
-      </p>
-
-      <section className="mt-6 space-y-2">
-        <h2 className="editorial-heading text-xl font-semibold">Vision</h2>
+    <article className="space-y-6 rounded-xl border border-line/20 bg-surface p-5 sm:p-6">
+      <header className="space-y-3">
+        <p className="mono-meta text-xs uppercase tracking-[0.22em] text-muted">About</p>
+        <h1 className="editorial-heading text-3xl font-semibold">AMP: All My Prompts</h1>
         <p className="text-sm text-muted">
-          AMP is designed to feel simple and readable first, then powerful when you need it. You can browse prompts
-          like blog posts, switch to edit mode only when needed, and keep templates, themes, plugins, and local share
-          packages in one organized workspace.
+          AMP is a production-first prompt workspace built to help creators and teams design better prompts, validate
+          them, package them, and publish reusable assets faster.
+        </p>
+      </header>
+
+      <section className="space-y-2">
+        <h2 className="editorial-heading text-xl font-semibold">What AMP Does</h2>
+        <p className="text-sm text-muted">
+          AMP combines prompt writing, structured validation, template libraries, plugin manifests, theme manifests,
+          and share/import workflows in one desktop app. It is designed so that reading and editing feel intentional,
+          not chaotic.
         </p>
       </section>
 
-      <section className="mt-6 space-y-2">
-        <h2 className="editorial-heading text-xl font-semibold">Marketplace Ready</h2>
+      <section className="space-y-2">
+        <h2 className="editorial-heading text-xl font-semibold">Why It Was Built</h2>
         <p className="text-sm text-muted">
-          The Marketplace link is reserved for the future AMP community site where prompts, templates, plugins, and
-          themes can be shared once the publishing flow is ready.
+          Most prompt tools either hide power behind complexity or oversimplify serious prompt work. AMP takes a middle
+          path: clean, editorial UI with practical controls that help people go from draft prompt to publishable prompt
+          package without context-switching across multiple apps.
         </p>
       </section>
 
-      <section className="mt-6 space-y-2">
-        <h2 className="editorial-heading text-xl font-semibold">Created By</h2>
+      <section className="space-y-2">
+        <h2 className="editorial-heading text-xl font-semibold">What It Is Good For</h2>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
+          <li>Building reusable prompt libraries for product, engineering, marketing, and support teams.</li>
+          <li>Validating prompts before sharing/exporting so public packages stay high quality.</li>
+          <li>Publishing plugin/theme manifests for internal teams or future marketplace release.</li>
+          <li>Running a creator workflow where each prompt can become a template, bundle, or premium asset.</li>
+        </ul>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="editorial-heading text-xl font-semibold">Monetization Path</h2>
         <p className="text-sm text-muted">
-          AMP is created and maintained by <strong>NolvusMadeIt</strong>.
+          AMP is structured for a marketplace phase where creators can distribute curated prompt packs, branded themes,
+          and utility plugins. The desktop app already supports manifest-based packaging and controlled import/export so
+          those assets can be sold, licensed, or shared with confidence.
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="editorial-heading text-xl font-semibold">Built By</h2>
+        <p className="text-sm text-muted">
+          AMP is created by <strong>NolvusMadeIt</strong> and built to scale from solo creator workflows to team-level
+          prompt operations.
         </p>
       </section>
     </article>

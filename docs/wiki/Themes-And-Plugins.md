@@ -1,31 +1,64 @@
-# Themes And Plugins
+# Themes and Plugins
 
-AMP supports local themes and plugins through manifests. They are designed to be easy to edit as files while still being safe enough for an open-source project.
+AMP treats themes and plugins as first-class, file-based assets.
 
-## Theme Builder
+## Plugin Workflow
 
-The Themes page includes a visual builder with live previews for:
+### Create or Edit
 
-- Background, cards, text, muted text, and borders.
-- Popovers, inputs, focus rings, accent buttons, and action text.
-- Success, warning, and danger states.
-- Chart tokens.
-- Sidebar background, active state, hover state, and dividers.
+- Use the Plugin Manifest editor in Settings.
+- Save manifest JSON to register or update.
+- Edit existing plugins from the Installed list.
 
-When editing an installed theme, click **Edit** to load it into both the visual builder and the manifest editor. Use **Sync Builder to Manifest** before saving visual changes.
+### Import Options
 
-Selecting a color token in the builder focuses the matching preview card, so contributors can immediately see how background, input, popover, status, chart, and sidebar colors will render.
+- Paste JSON directly.
+- Load JSON from a marketplace URL.
+- Import a local JSON manifest file.
+- Import from a local folder containing `manifest.json`.
 
-## Plugins
+### Export Options
 
-Plugins are registered through JSON manifests and written to local files. A plugin can expose token-like values such as `{wordcount}` or `{tools.wordcount}` for markdown surfaces.
+- Copy JSON from the UI.
+- Export manifest to file.
+- Open plugin folder for direct editing.
 
-The static marketplace prototype in `docs/index.html` supports both theme and plugin listing drafts and exports the manifest or full showcase gallery as JSON.
+### Safety Rules
 
-## Safety Rules
+- Permissions are allow-listed.
+- Entry paths are sanitized.
+- HTTPS homepage enforced when provided.
 
-- Treat imported manifests as untrusted input.
-- Keep permissions explicit and small.
-- Avoid remote code execution.
-- Use HTTPS homepages for public packages.
-- Validate plugin/theme data before storage and again before any future website publishing flow.
+## Theme Workflow
+
+### Visual Builder
+
+The Theme Builder supports:
+
+- Foundation tokens (`--bg`, `--surface`, `--text`, `--border`, etc.)
+- Interactive tokens (`--input`, `--ring`, `--popover`, `--accent`)
+- Status tokens (`--success`, `--warning`, `--danger`)
+- Chart tokens (`--chart-1` through `--chart-5`)
+- Sidebar token set
+- Typography dropdowns for sans/serif/mono families
+- Radius and shadow controls
+
+Each color token is tied to a visible preview card so users can see where the token appears.
+
+### Manifest Sync
+
+- Build visually, then sync builder values into JSON manifest.
+- Load an existing manifest back into the builder for edits.
+
+### Import/Export Options
+
+- Paste JSON
+- Marketplace URL import
+- Local JSON file import
+- Local folder import (`manifest.json`)
+- File export
+- Open theme folder
+
+## Marketplace Prototype
+
+The repo includes a static marketplace prototype at `docs/index.html` where users can stage and export plugin/theme listings with title, description, image, and manifest.

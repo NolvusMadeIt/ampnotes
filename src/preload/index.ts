@@ -73,11 +73,19 @@ const api: ApiClient = {
   marketplace: {
     getState: (profileId) => invoke('marketplace.getState', { profileId }),
     registerPlugin: (profileId, manifest) => invoke('marketplace.registerPlugin', { profileId, manifest }),
+    importPluginManifestFile: (profileId) => invoke('marketplace.importPluginManifestFile', { profileId }),
+    importPluginFromFolder: (profileId) => invoke('marketplace.importPluginFromFolder', { profileId }),
+    exportPluginManifest: (profileId, pluginId) =>
+      invoke('marketplace.exportPluginManifest', { profileId, pluginId }),
     setPluginEnabled: (profileId, pluginId, enabled) =>
       invoke('marketplace.setPluginEnabled', { profileId, pluginId, enabled }),
     removePlugin: (profileId, pluginId) => invoke('marketplace.removePlugin', { profileId, pluginId }),
     openPluginFolder: (profileId, pluginId) => invoke('marketplace.openPluginFolder', { profileId, pluginId }),
     registerTheme: (profileId, manifest) => invoke('marketplace.registerTheme', { profileId, manifest }),
+    importThemeManifestFile: (profileId) => invoke('marketplace.importThemeManifestFile', { profileId }),
+    importThemeFromFolder: (profileId) => invoke('marketplace.importThemeFromFolder', { profileId }),
+    exportThemeManifest: (profileId, themeId) =>
+      invoke('marketplace.exportThemeManifest', { profileId, themeId }),
     setActiveTheme: (profileId, themeId) => invoke('marketplace.setActiveTheme', { profileId, themeId }),
     removeTheme: (profileId, themeId) => invoke('marketplace.removeTheme', { profileId, themeId }),
     openThemeFolder: (profileId, themeId) => invoke('marketplace.openThemeFolder', { profileId, themeId })

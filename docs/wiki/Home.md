@@ -1,25 +1,46 @@
-# AMP Wiki
+# AMP Wiki Home
 
-AMP means **All My Prompts**. It is a local-first prompt notebook for writing, reading, validating, sharing, and extending prompts.
+Welcome to the AMP wiki.
 
-## Core Workflow
+**AMP** means **All My Prompts** and is designed as a production prompt workspace for writing, validating, packaging, and distributing reusable prompt assets.
 
-1. Use the left notebook navigation to choose All Pages, Starred, Recent, Templates, Plugins, or Themes.
-2. Use the second column to browse pages and tags.
-3. Click a prompt to read it in the center workspace.
-4. Choose **Use this prompt** only when you want to edit/build from it.
-5. Use **Help me improve** or **Validate Prompt** after configuring a Groq API key in Settings.
+## Current App Model
 
-## Sharing
+AMP runs as one primary workspace (Neo) with:
 
-Share/export only includes selected prompts and templates. Prompts must pass required metadata validation before they can be shared or exported.
+1. Left column: lane + tag navigation.
+2. Middle column: prompt list, filters, and lane context.
+3. Right column: summary/read/edit focus panel and prompt actions.
 
-## Marketplace
+## Primary Workflows
 
-The Marketplace footer link is a placeholder until the community site is available. Future marketplace flows are planned for prompts, templates, plugins, and themes.
+- Create prompt
+- Improve prompt (Groq configured)
+- Validate prompt
+- Save and copy
+- Convert prompt to template
+- Share/export/import
 
-The repository also includes a static GitHub Pages prototype in `docs/index.html`. It previews the AMP Custom System theme, supports light/dark mode, and lets contributors stage a local theme/plugin listing with title, description, preview image, manifest JSON, and export buttons.
+## Settings Areas
 
-## Local Data
+- General: theme mode, typography, API key, account actions.
+- Plugins: manifest editor + import/export + folder tools.
+- Themes: visual builder + manifest editor + import/export + folder tools.
 
-AMP stores app data locally in SQLite. Groq API keys are stored in the OS keychain.
+## Marketplace Readiness
+
+The app currently supports marketplace-ready manifest workflows:
+
+- Paste JSON
+- Import from URL
+- Import from local file
+- Import from local folder
+- Export manifest file
+
+The public marketplace website is still in staged/prototype status via `docs/index.html`.
+
+## Related Pages
+
+- [Themes and Plugins](./Themes-And-Plugins.md)
+- [README](../../README.md)
+- [Contributing](../../CONTRIBUTING.md)

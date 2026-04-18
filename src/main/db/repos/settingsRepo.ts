@@ -272,7 +272,11 @@ export class SettingsRepo {
     }
   }
 
-  registerPlugin(profileId: string, manifest: CreatePluginManifestInput): InstalledPluginDTO {
+  registerPlugin(
+    profileId: string,
+    manifest: CreatePluginManifestInput,
+    source: InstalledPluginDTO['source'] = 'marketplace'
+  ): InstalledPluginDTO {
     const normalized = normalizePluginManifest(manifest)
     const state = this.getMarketplaceState(profileId)
     const existing = state.plugins.find((plugin) => plugin.id === normalized.id)
@@ -281,7 +285,7 @@ export class SettingsRepo {
       ...normalized,
       enabled: existing?.enabled ?? true,
       installedAt,
-      source: 'marketplace'
+      source
     }
     const packagedPlugin = this.writePluginPackage(profileId, plugin)
 
@@ -312,7 +316,11 @@ export class SettingsRepo {
     rmSync(this.getPluginFolder(profileId, pluginId), { recursive: true, force: true })
   }
 
-  registerTheme(profileId: string, manifest: CreateThemeManifestInput): InstalledThemeDTO {
+  registerTheme(
+    profileId: string,
+    manifest: CreateThemeManifestInput,
+    source: InstalledThemeDTO['source'] = 'marketplace'
+  ): InstalledThemeDTO {
     const normalized = normalizeThemeManifest(manifest)
     const state = this.getMarketplaceState(profileId)
     const existing = state.themes.find((theme) => theme.id === normalized.id)
@@ -320,7 +328,7 @@ export class SettingsRepo {
     const theme: InstalledThemeDTO = {
       ...normalized,
       installedAt,
-      source: 'marketplace'
+      source
     }
     const packagedTheme = this.writeThemePackage(profileId, theme)
 

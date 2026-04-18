@@ -131,6 +131,14 @@ export interface MarketplaceFolderResult {
   reason?: string
 }
 
+export interface MarketplaceTransferResult {
+  ok: boolean
+  canceled?: boolean
+  filePath?: string
+  folderPath?: string
+  reason?: string
+}
+
 export interface CreatePromptInput {
   title: string
   content: string

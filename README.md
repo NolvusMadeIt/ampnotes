@@ -1,55 +1,127 @@
 # AMP
 
-AMP means **All My Prompts**. It is a desktop-first prompt notebook for writing, reading, improving, validating, sharing, and organizing prompts without making the workflow feel like a settings panel.
+**AMP** stands for **All My Prompts**.
 
-The app is intentionally shaped like a mix of OneNote, Joplin, and Notion: a notebook navigation column, a page list column, and a readable center workspace that can switch between home feed, read view, and edit mode.
+AMP is a desktop-first prompt operations app for creating, validating, packaging, and shipping reusable prompts. It blends editorial readability with production tooling so creators can go from rough prompt draft to shareable asset without juggling multiple tools.
 
-## Highlights
+## What You Can Do
 
-- Three-column notebook layout with responsive fallback for smaller screens.
-- Blog-style prompt reading on click, with explicit edit/use actions when the user wants to build.
-- Markdown-first prompt editor with formatting controls and plugin token support.
-- Local templates with create, edit, delete, and add-from-prompt workflows.
-- Groq-powered prompt improvement and validation when the user adds an API key.
-- Share/import flow with required validation and selected prompt/template exports.
-- Theme builder with live previews for foundation, interactive, status, chart, sidebar, popover, and input tokens.
-- Plugin and theme manifests are stored as local files with folder-open actions for advanced editing.
-- Desktop window size and position are remembered between launches.
-- Static GitHub Pages marketplace prototype for showcasing and exporting themes/plugins lives in `docs/`.
+- Write prompts in a focused three-column workspace.
+- Read prompts like content cards before choosing to edit.
+- Improve and validate prompts with Groq (optional API key).
+- Convert any prompt into a reusable template.
+- Share/import prompts and selected bundles with validation gates.
+- Build and edit plugin/theme manifests visually and as JSON.
+- Import plugin/theme manifests by:
+  - Paste JSON
+  - Marketplace URL
+  - Local manifest file
+  - Local folder (`manifest.json`)
+- Export plugin/theme manifests as files.
+- Open plugin/theme package folders for advanced editing.
 
-## Development
+## Why AMP Exists
+
+Most prompt tooling has one of two problems:
+
+1. It is too lightweight for serious prompt workflows.
+2. It is too complex for everyday creators.
+
+AMP solves this by keeping the UI clear while preserving advanced workflows for templates, sharing, validation, plugins, and themes.
+
+## Product Direction
+
+AMP is built for the next stage: creator distribution.
+
+- Prompt packs
+- Template bundles
+- Utility plugins
+- Visual theme packs
+
+The app already supports manifest-based packaging and strict validation so future marketplace publishing can be safe, repeatable, and monetizable.
+
+## App Architecture
+
+```mermaid
+flowchart LR
+  R["Renderer (React + Tailwind)"] --> P["Preload API Bridge"]
+  P --> M["Electron Main IPC"]
+  M --> DB["SQLite (better-sqlite3)"]
+  M --> KC["OS Keychain (Groq key)"]
+  M --> FS["Marketplace Filesystem Packages"]
+```
+
+## Security Model
+
+- Plugin permissions are allow-listed.
+- Plugin entry paths are sanitized.
+- Theme token keys/values are sanitized.
+- Dangerous CSS patterns (for example `url(`, `@import`, `expression(`) are rejected.
+- HTTPS-only homepages are enforced in normalized manifests.
+- Prompt sharing/export enforces required metadata validation.
+- Groq API keys are stored through OS keychain integration.
+
+## Run Locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Scripts
+### Build
 
-- `npm run dev` starts the Electron development environment.
-- `npm run build` builds `out/main`, `out/preload`, and `out/renderer`.
-- `npm run typecheck` runs TypeScript checks.
-- `npm test` runs the Vitest suites.
-- `npm run rebuild:native` rebuilds Electron native modules such as `better-sqlite3`.
+```bash
+npm run build
+```
 
-## Data And Security
+### Typecheck
 
-- Core data is stored locally in SQLite through the Electron main process.
-- Groq API keys are stored in the OS keychain through `keytar`.
-- Plugin and theme manifests are validated before storage.
-- Theme tokens reject unsafe CSS patterns such as `url(`, `@import`, and `expression(`.
-- Sharing/export validates required prompt metadata before anything leaves the app.
+```bash
+npm run typecheck
+```
 
-## Marketplace Roadmap
+### Tests
 
-The footer includes a placeholder Marketplace link. The future marketplace website is planned to support prompt, template, plugin, and theme submission/download flows while keeping local-first usage intact.
+```bash
+npm test
+```
 
-The repo includes a static prototype at `docs/index.html` for GitHub Pages. It uses the AMP `Custom System` light/dark theme tokens and lets users stage theme/plugin listings with title, description, image, manifest JSON, and export actions.
+`npm test` now rebuilds `better-sqlite3` for Node before running Vitest, and `npm run dev` rebuilds native modules for Electron before launch.  
+If you ever need to force it manually:
 
-## Contributing
+```bash
+npm run rebuild:node
+npm run rebuild:native
+```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow, security expectations, and review guidelines.
+## Project Layout
+
+- `src/main`: Electron main process, IPC handlers, DB repositories, security.
+- `src/preload`: typed bridge API between renderer and main.
+- `src/renderer`: React UI, features, dialogs, legal pages, theme system.
+- `src/shared`: runtime contracts, DTOs, and validation rules.
+- `docs`: static marketplace prototype and wiki pages.
+
+## Marketplace Prototype (GitHub Pages Ready)
+
+`docs/index.html` is a static showcase prototype for theme/plugin submissions inspired by Tailwind’s showcase style.
+
+It supports:
+
+- Resource cards
+- Light/dark token previews
+- Submission form (title, description, image, manifest JSON)
+- JSON export for individual manifests and full listing
+
+## Documentation
+
+- [Contributing](./CONTRIBUTING.md)
+- [Quick Contribute Alias](./contribute.md)
+- [Wiki Home](./docs/wiki/Home.md)
+- [Wiki: Themes and Plugins](./docs/wiki/Themes-And-Plugins.md)
+- [Terms of Service UI Page](./src/renderer/features/legal/TermsOfServicePage.tsx)
+- [About UI Page](./src/renderer/features/legal/AboutPage.tsx)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](./LICENSE).

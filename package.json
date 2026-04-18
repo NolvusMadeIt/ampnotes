@@ -8,13 +8,14 @@
   "type": "module",
   "scripts": {
     "postinstall": "npm run rebuild:native",
-    "dev": "electron-vite dev",
-    "dev:electron": "electron-vite dev",
+    "dev": "npm run rebuild:native && electron-vite dev",
+    "dev:electron": "npm run rebuild:native && electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "rebuild:native": "electron-rebuild -f",
+    "rebuild:node": "npm rebuild better-sqlite3",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "npm run rebuild:node && vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -25,10 +25,16 @@ interface SettingsDialogProps {
   onThemeChange: (theme: ThemeMode) => Promise<void>
   onAppearanceChange: (appearance: AppearanceSettingsDTO) => Promise<void>
   onRegisterPlugin: (manifest: CreatePluginManifestInput) => Promise<void>
+  onImportPluginManifestFile: () => Promise<void>
+  onImportPluginFromFolder: () => Promise<void>
+  onExportPluginManifest: (pluginId: string) => Promise<void>
   onTogglePlugin: (pluginId: string, enabled: boolean) => Promise<void>
   onRemovePlugin: (pluginId: string) => Promise<void>
   onOpenPluginFolder: (pluginId: string) => Promise<MarketplaceFolderResult>
   onRegisterTheme: (manifest: CreateThemeManifestInput) => Promise<void>
+  onImportThemeManifestFile: () => Promise<void>
+  onImportThemeFromFolder: () => Promise<void>
+  onExportThemeManifest: (themeId: string) => Promise<void>
   onSetActiveMarketplaceTheme: (themeId: string | null) => Promise<void>
   onRemoveTheme: (themeId: string) => Promise<void>
   onOpenThemeFolder: (themeId: string) => Promise<MarketplaceFolderResult>
@@ -378,10 +384,16 @@ export function SettingsDialog({
   onThemeChange,
   onAppearanceChange,
   onRegisterPlugin,
+  onImportPluginManifestFile,
+  onImportPluginFromFolder,
+  onExportPluginManifest,
   onTogglePlugin,
   onRemovePlugin,
   onOpenPluginFolder,
   onRegisterTheme,
+  onImportThemeManifestFile,
+  onImportThemeFromFolder,
+  onExportThemeManifest,
   onSetActiveMarketplaceTheme,
   onRemoveTheme,
   onOpenThemeFolder,
@@ -393,8 +405,10 @@ export function SettingsDialog({
   const [apiKey, setApiKey] = useState('')
   const [fontScaleDraft, setFontScaleDraft] = useState(appearance.fontScale)
   const [pluginManifestJson, setPluginManifestJson] = useState('')
+  const [pluginMarketplaceUrl, setPluginMarketplaceUrl] = useState('')
   const [editingPluginId, setEditingPluginId] = useState<string | null>(null)
   const [themeManifestJson, setThemeManifestJson] = useState('')
+  const [themeMarketplaceUrl, setThemeMarketplaceUrl] = useState('')
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null)
   const [themeBuilder, setThemeBuilder] = useState<ThemeBuilderState>(DEFAULT_THEME_BUILDER)
   const [builderMode, setBuilderMode] = useState<BuilderMode>('light')
@@ -445,6 +459,31 @@ export function SettingsDialog({
     } finally {
       setBusyKey(null)
     }
+  }
+
+  const loadManifestFromUrl = async (
+    actionKey: string,
+    rawUrl: string,
+    onLoaded: (payload: string) => void
+  ) => {
+    const url = rawUrl.trim()
+    if (!url) {
+      setMarketplaceError('Paste a marketplace manifest URL first.')
+      return
+    }
+    await runAction(actionKey, async () => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: 'application/json, text/plain'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`Could not fetch manifest (${response.status})`)
+      }
+      const payload = await response.text()
+      JSON.parse(payload)
+      onLoaded(payload)
+    })
   }
 
   const applyAppearance = async (next: Partial<AppearanceSettingsDTO>) => {
@@ -826,7 +865,7 @@ export function SettingsDialog({
               Shortcode examples for markdown: <code>{'{wordcount}'}</code> or <code>{'{tools.wordcount}'}</code>.
             </p>
             <p className="mt-1 text-sm text-muted">
-              Click <strong>Edit</strong> on an installed plugin, update JSON, then save.
+              Import from marketplace URL, paste JSON, load a local file/folder, then edit or export safely.
             </p>
           </div>
 
@@ -844,6 +883,53 @@ export function SettingsDialog({
               </p>
               <Button size="sm" variant="secondary" onClick={async () => copyJson(JSON.parse(PLUGIN_MANIFEST_PLACEHOLDER))}>
                 Copy Example
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'plugin-import-file'}
+                onClick={async () =>
+                  runAction('plugin-import-file', async () => {
+                    await onImportPluginManifestFile()
+                  })
+                }
+              >
+                Import JSON File
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'plugin-import-folder'}
+                onClick={async () =>
+                  runAction('plugin-import-folder', async () => {
+                    await onImportPluginFromFolder()
+                  })
+                }
+              >
+                Import Local Folder
+              </Button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+              <input
+                className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 text-xs outline-none focus:border-accent/10"
+                placeholder="Marketplace JSON URL (https://...)"
+                value={pluginMarketplaceUrl}
+                onChange={(event) => setPluginMarketplaceUrl(event.target.value)}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'plugin-import-url'}
+                onClick={async () =>
+                  loadManifestFromUrl('plugin-import-url', pluginMarketplaceUrl, (payload) => {
+                    setPluginManifestJson(payload)
+                    setEditingPluginId(null)
+                  })
+                }
+              >
+                Load URL
               </Button>
             </div>
             <textarea
@@ -944,6 +1030,18 @@ export function SettingsDialog({
                       </Button>
                       <Button
                         size="sm"
+                        variant="secondary"
+                        disabled={busyKey === `plugin-export-${plugin.id}`}
+                        onClick={async () =>
+                          runAction(`plugin-export-${plugin.id}`, async () => {
+                            await onExportPluginManifest(plugin.id)
+                          })
+                        }
+                      >
+                        Export File
+                      </Button>
+                      <Button
+                        size="sm"
                         variant="danger"
                         disabled={busyKey === `plugin-remove-${plugin.id}`}
                         onClick={async () =>
@@ -975,7 +1073,7 @@ export function SettingsDialog({
               <HelpTooltip text="Create, edit, activate, and share themes." />
             </h3>
             <p className="mt-1 text-sm text-muted">
-              Click <strong>Edit</strong> on an installed theme to load it into the visual builder and manifest editor.
+              Import from marketplace URL, paste JSON, or load a local folder, then use the builder to refine visuals.
             </p>
           </div>
 
@@ -1381,6 +1479,53 @@ export function SettingsDialog({
                 Copy Example
               </Button>
             </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'theme-import-file'}
+                onClick={async () =>
+                  runAction('theme-import-file', async () => {
+                    await onImportThemeManifestFile()
+                  })
+                }
+              >
+                Import JSON File
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'theme-import-folder'}
+                onClick={async () =>
+                  runAction('theme-import-folder', async () => {
+                    await onImportThemeFromFolder()
+                  })
+                }
+              >
+                Import Local Folder
+              </Button>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+              <input
+                className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 text-xs outline-none focus:border-accent/10"
+                placeholder="Marketplace JSON URL (https://...)"
+                value={themeMarketplaceUrl}
+                onChange={(event) => setThemeMarketplaceUrl(event.target.value)}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'theme-import-url'}
+                onClick={async () =>
+                  loadManifestFromUrl('theme-import-url', themeMarketplaceUrl, (payload) => {
+                    setThemeManifestJson(payload)
+                    setEditingThemeId(null)
+                  })
+                }
+              >
+                Load URL
+              </Button>
+            </div>
             <textarea
               className="min-h-[360px] w-full rounded-lg border border-line/20 bg-surface2 px-3 py-2 text-xs outline-none focus:border-accent/10"
               placeholder={THEME_MANIFEST_PLACEHOLDER}
@@ -1481,6 +1626,18 @@ export function SettingsDialog({
                         </Button>
                         <Button size="sm" variant="secondary" onClick={async () => copyJson(themeItem)}>
                           Copy JSON
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busyKey === `theme-export-${themeItem.id}`}
+                          onClick={async () =>
+                            runAction(`theme-export-${themeItem.id}`, async () => {
+                              await onExportThemeManifest(themeItem.id)
+                            })
+                          }
+                        >
+                          Export File
                         </Button>
                         <Button
                           size="sm"

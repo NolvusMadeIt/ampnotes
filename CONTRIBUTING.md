@@ -1,15 +1,17 @@
-# Contributing To AMP
+# Contributing to AMP
 
-Thanks for helping improve AMP, All My Prompts. This project should stay simple for everyday users while still being powerful for prompt authors, theme builders, and plugin developers.
+Thanks for contributing to **AMP (All My Prompts)**.
 
-## Local Setup
+AMP is built for real prompt operations, not just demos. Contributions should keep that standard: readable UX, reliable behavior, and safe manifest handling.
+
+## Development Setup
 
 ```bash
 npm install
 npm run dev
 ```
 
-Before opening a pull request, run:
+## Required Checks Before PR
 
 ```bash
 npm run typecheck
@@ -17,41 +19,67 @@ npm run build
 npm test
 ```
 
-If native SQLite tests fail because `better-sqlite3` was built for the wrong runtime, close running AMP/Electron processes, run `npm rebuild better-sqlite3`, and rerun the tests. After test work, `npm run rebuild:native` restores Electron native modules.
+Native handling:
 
-## Pull Request Expectations
+```bash
+npm run rebuild:node
+npm run rebuild:native
+```
 
-- Keep the app local-first and privacy-conscious.
-- Preserve the notebook/read/edit mental model.
-- Do not add heavy dependencies without a clear user-facing reason.
-- Keep UI changes restrained, readable, and consistent with the existing theme system.
-- Add or update tests for data behavior, validation, sharing, or marketplace logic.
-- Update README/wiki docs when changing user-visible workflows.
+`npm test` already runs `rebuild:node` first, and `npm run dev` runs `rebuild:native` before Electron startup.
 
-## Plugin And Theme Safety
+## Contribution Priorities
 
-Plugins and themes should be treated as untrusted input.
+1. **Clarity First**
+   - Prompt reading should feel intentional.
+   - Editing should be explicit, not accidental.
+2. **Workflow Integrity**
+   - Share/export/import flows must keep validation guarantees.
+   - Plugin/theme flows must remain understandable for non-experts.
+3. **Security by Default**
+   - Treat imported manifests as untrusted.
+   - Keep permission surfaces small and explicit.
+4. **Production Readiness**
+   - Avoid unfinished UI controls.
+   - Every clickable action should have a clear purpose.
 
-- Keep manifests explicit and minimal.
-- Use HTTPS homepages for public packages.
-- Do not request broad permissions unless the feature truly needs them.
-- Never execute unreviewed code with unrestricted filesystem or network access.
-- Validate imported plugin/theme data in both desktop and future website flows.
+## UI Guidelines
 
-## Design Guidelines
+- Avoid noisy outlines and excessive rounding.
+- Keep theme contrast clean in light and dark mode.
+- Prefer useful labels over novelty copy.
+- Preserve responsive behavior for desktop, tablet, and phone breakpoints.
 
-- Clicking a prompt should read like a blog post first, not throw users into editing.
-- Edit/create actions should be explicit.
-- Avoid bright outline-heavy themes and excessive rounding.
-- Prefer clear, useful labels over clever copy.
-- Make validation visible when content will be shared, exported, or published.
+## Plugin & Theme Rules
 
-## Reporting Issues
+- Manifest IDs should be stable and unique.
+- Homepages must be HTTPS when provided.
+- Entry paths must stay safe (no traversal).
+- Keep plugin permissions minimal.
+- If you add import/export behavior, test:
+  - Paste JSON
+  - Local file
+  - Local folder
+  - Marketplace URL
 
-When filing an issue, include:
+## Pull Request Checklist
 
-- What you expected to happen.
-- What actually happened.
-- Steps to reproduce.
-- Screenshots or a short recording for UI issues.
-- OS, Node version, and whether you are running dev or packaged AMP.
+- [ ] Feature is complete enough to be used immediately.
+- [ ] Empty/partial actions are removed or disabled.
+- [ ] Error handling is visible and human-readable.
+- [ ] Docs updated (README and wiki pages if user-facing).
+- [ ] No debug-only UI left behind.
+
+## Issue Reports
+
+When opening issues, include:
+
+- Expected behavior
+- Actual behavior
+- Repro steps
+- Screenshot/video for UI issues
+- OS, Node version, and whether running `dev` or packaged app
+
+## License
+
+By contributing, you agree your contributions are licensed under the project’s MIT license.

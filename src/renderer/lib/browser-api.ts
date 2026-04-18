@@ -207,6 +207,31 @@ function normalizeThemeManifest(input: CreateThemeManifestInput): CreateThemeMan
   }
 }
 
+function toPluginManifest(plugin: InstalledPluginDTO): CreatePluginManifestInput {
+  return {
+    id: plugin.id,
+    name: plugin.name,
+    version: plugin.version,
+    description: plugin.description,
+    author: plugin.author,
+    entry: plugin.entry,
+    homepage: plugin.homepage,
+    permissions: plugin.permissions
+  }
+}
+
+function toThemeManifest(theme: InstalledThemeDTO): CreateThemeManifestInput {
+  return {
+    id: theme.id,
+    name: theme.name,
+    version: theme.version,
+    description: theme.description,
+    author: theme.author,
+    homepage: theme.homepage,
+    tokens: theme.tokens
+  }
+}
+
 function summarizePrompt(content: string): string {
   const stripped = content.replace(/\s+/g, ' ').trim()
   return stripped.slice(0, 80)
@@ -1414,6 +1439,45 @@ export function createBrowserApiClient(): ApiClient {
           ].sort((a, b) => a.name.localeCompare(b.name))
           return clone(plugin)
         }),
+      importPluginManifestFile: async (profileId: string) => {
+        if (typeof document === 'undefined') {
+          return { ok: false, reason: 'File import is not available in this environment.' }
+        }
+        const text = await pickFileText()
+        if (!text) {
+          return { ok: false, canceled: true, reason: 'No file selected.' }
+        }
+        const manifest = normalizePluginManifest(JSON.parse(text) as CreatePluginManifestInput)
+        await withDb((db) => {
+          const existing = db.marketplace.plugins.find((item) => item.id === manifest.id)
+          const plugin: InstalledPluginDTO = {
+            ...manifest,
+            enabled: existing?.enabled ?? true,
+            installedAt: existing?.installedAt ?? nowIso(),
+            source: 'local'
+          }
+          db.marketplace.plugins = [
+            ...db.marketplace.plugins.filter((item) => item.id !== manifest.id),
+            plugin
+          ].sort((a, b) => a.name.localeCompare(b.name))
+        })
+        return { ok: true }
+      },
+      importPluginFromFolder: async () => ({
+        ok: false,
+        reason: 'Folder import is available in the desktop app.'
+      }),
+      exportPluginManifest: async (_profileId: string, pluginId: string) =>
+        withDb((db) => {
+          const plugin = db.marketplace.plugins.find((item) => item.id === pluginId)
+          if (!plugin) {
+            throw new Error('Plugin not found')
+          }
+          if (typeof document !== 'undefined') {
+            downloadTextFile(`${plugin.id}.plugin.json`, JSON.stringify(toPluginManifest(plugin), null, 2), 'application/json')
+          }
+          return { ok: true }
+        }),
       setPluginEnabled: async (_profileId: string, pluginId: string, enabled: boolean) =>
         withDb((db) => {
           const existing = db.marketplace.plugins.find((item) => item.id === pluginId)
@@ -1449,6 +1513,44 @@ export function createBrowserApiClient(): ApiClient {
             theme
           ].sort((a, b) => a.name.localeCompare(b.name))
           return clone(theme)
+        }),
+      importThemeManifestFile: async (profileId: string) => {
+        if (typeof document === 'undefined') {
+          return { ok: false, reason: 'File import is not available in this environment.' }
+        }
+        const text = await pickFileText()
+        if (!text) {
+          return { ok: false, canceled: true, reason: 'No file selected.' }
+        }
+        const manifest = normalizeThemeManifest(JSON.parse(text) as CreateThemeManifestInput)
+        await withDb((db) => {
+          const existing = db.marketplace.themes.find((item) => item.id === manifest.id)
+          const theme: InstalledThemeDTO = {
+            ...manifest,
+            installedAt: existing?.installedAt ?? nowIso(),
+            source: 'local'
+          }
+          db.marketplace.themes = [
+            ...db.marketplace.themes.filter((item) => item.id !== manifest.id),
+            theme
+          ].sort((a, b) => a.name.localeCompare(b.name))
+        })
+        return { ok: true }
+      },
+      importThemeFromFolder: async () => ({
+        ok: false,
+        reason: 'Folder import is available in the desktop app.'
+      }),
+      exportThemeManifest: async (_profileId: string, themeId: string) =>
+        withDb((db) => {
+          const theme = db.marketplace.themes.find((item) => item.id === themeId)
+          if (!theme) {
+            throw new Error('Theme not found')
+          }
+          if (typeof document !== 'undefined') {
+            downloadTextFile(`${theme.id}.theme.json`, JSON.stringify(toThemeManifest(theme), null, 2), 'application/json')
+          }
+          return { ok: true }
         }),
       setActiveTheme: async (_profileId: string, themeId: string | null) =>
         withDb((db) => {

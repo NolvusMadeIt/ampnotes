@@ -1,42 +1,17 @@
-import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  FilePlus2,
-  Heart,
-  Import,
-  LayoutGrid,
-  ShoppingBag,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Palette,
-  Puzzle,
-  Search as SearchIcon,
-  Settings,
-  Tag,
-  Timer,
-  WandSparkles
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthView } from '@renderer/features/auth/AuthView'
-import { AppShell } from '@renderer/app/layout/AppShell'
-import { SearchInput } from '@renderer/features/search/SearchInput'
-import { PromptCard } from '@renderer/components/prompt/PromptCard'
-import { PromptContextMenu } from '@renderer/components/prompt/PromptContextMenu'
-import { PromptEditor } from '@renderer/features/prompts/PromptEditor'
-import { PromptHomeFeed } from '@renderer/features/prompts/PromptHomeFeed'
-import { PromptReader } from '@renderer/features/prompts/PromptReader'
+import { NeoApp } from '@renderer/features/neo/NeoApp'
 import { AboutPage } from '@renderer/features/legal/AboutPage'
 import { TermsOfServicePage } from '@renderer/features/legal/TermsOfServicePage'
 import { NewPromptModal } from '@renderer/features/prompts/NewPromptModal'
-import { usePromptUiStore, type NavSection } from '@renderer/features/prompts/usePromptUiStore'
-import { TagList } from '@renderer/features/tags/TagList'
-import { TemplatePanel } from '@renderer/features/templates/TemplatePanel'
 import { SettingsDialog } from '@renderer/features/settings/SettingsDialog'
 import { RefineModal } from '@renderer/features/refine/RefineModal'
 import { ShareDialog } from '@renderer/features/sharing/ShareDialog'
-import { Button } from '@renderer/components/ui/Button'
-import { getApi, hasDesktopBridge } from '@renderer/lib/api-client'
-import { applyAppearance, applyTheme, resolveTheme } from '@renderer/lib/theme'
 import { ToastHost, type AppToast } from '@renderer/components/ui/ToastHost'
 import { ConfirmDialog } from '@renderer/components/ui/ConfirmDialog'
+import { Modal } from '@renderer/components/ui/Modal'
+import { getApi } from '@renderer/lib/api-client'
+import { applyAppearance, applyTheme, resolveTheme } from '@renderer/lib/theme'
 import {
   formatPromptValidationIssues,
   validatePromptForSave,
@@ -55,19 +30,6 @@ import type {
   ThemeMode
 } from '@shared/types'
 
-const NAV_ITEMS: Array<{
-  id: NavSection
-  label: string
-  icon: ComponentType<{ size?: number; className?: string }>
-}> = [
-  { id: 'all', label: 'All Pages', icon: LayoutGrid },
-  { id: 'favorites', label: 'Starred', icon: Heart },
-  { id: 'recent', label: 'Recent', icon: Timer },
-  { id: 'templates', label: 'Templates', icon: WandSparkles },
-  { id: 'pluginSettings', label: 'Plugins', icon: Puzzle },
-  { id: 'themeSettings', label: 'Themes', icon: Palette }
-]
-
 const EMPTY_MARKETPLACE_STATE: MarketplaceStateDTO = {
   plugins: [],
   themes: [],
@@ -79,8 +41,6 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontScale: 100,
   themePreset: 'midnight'
 }
-
-const SETTINGS_SECTIONS: NavSection[] = ['settings', 'pluginSettings', 'themeSettings']
 
 export default function Routes() {
   const api = useMemo(() => getApi(), [])
@@ -94,38 +54,27 @@ export default function Routes() {
   const [templates, setTemplates] = useState<TemplateDTO[]>([])
   const [tags, setTags] = useState<Array<{ name: string; count: number }>>([])
   const [categories, setCategories] = useState<Array<{ name: string; count: number }>>([])
+  const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null)
   const [toasts, setToasts] = useState<AppToast[]>([])
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  const nav = usePromptUiStore((state) => state.nav)
-  const search = usePromptUiStore((state) => state.search)
-  const activeTag = usePromptUiStore((state) => state.activeTag)
-  const selectedPromptId = usePromptUiStore((state) => state.selectedPromptId)
-  const setNav = usePromptUiStore((state) => state.setNav)
-  const setSearch = usePromptUiStore((state) => state.setSearch)
-  const setActiveTag = usePromptUiStore((state) => state.setActiveTag)
-  const setSelectedPromptId = usePromptUiStore((state) => state.setSelectedPromptId)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'all'>('all')
+  const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
 
   const [refineOpen, setRefineOpen] = useState(false)
-  const [promptDetailMode, setPromptDetailMode] = useState<'home' | 'read' | 'edit'>('home')
-  const [shareOpen, setShareOpen] = useState(false)
-  const [newPromptOpen, setNewPromptOpen] = useState(false)
-  const [newPromptRefineConfigured, setNewPromptRefineConfigured] = useState(false)
-  const [newPromptRefining, setNewPromptRefining] = useState(false)
-  const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
-  const [draggingPromptId, setDraggingPromptId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{
-    x: number
-    y: number
-    prompt: PromptDTO
-  } | null>(null)
-
   const [refineConfigured, setRefineConfigured] = useState(false)
   const [refineLoading, setRefineLoading] = useState(false)
   const [refineResult, setRefineResult] = useState<RefinementResult | null>(null)
   const [validatingPromptId, setValidatingPromptId] = useState<string | null>(null)
 
+  const [shareOpen, setShareOpen] = useState(false)
   const [shareCode, setShareCode] = useState('')
+  const [newPromptOpen, setNewPromptOpen] = useState(false)
+  const [newPromptRefineConfigured, setNewPromptRefineConfigured] = useState(false)
+  const [newPromptRefining, setNewPromptRefining] = useState(false)
+  const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
+
   const toastTimersRef = useRef<Map<number, number>>(new Map())
   const toastCounterRef = useRef(1)
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null)
@@ -142,37 +91,12 @@ export default function Routes() {
     confirmLabel: 'Confirm',
     tone: 'default'
   })
-  const isSettingsNav = SETTINGS_SECTIONS.includes(nav)
-  const isLegalNav = nav === 'about' || nav === 'tos'
-  const activeNavLabel = useMemo(() => {
-    if (nav === 'about') {
-      return 'About'
-    }
-    if (nav === 'tos') {
-      return 'Terms of Service'
-    }
-    if (nav === 'settings') {
-      return 'Settings'
-    }
-    if (nav === 'all' && activeTag) {
-      return `Tagged #${activeTag}`
-    }
-    return NAV_ITEMS.find((item) => item.id === nav)?.label ?? 'All Pages'
-  }, [activeTag, nav])
 
   const selectedPrompt = useMemo(
     () => prompts.find((prompt) => prompt.id === selectedPromptId) ?? null,
     [prompts, selectedPromptId]
   )
-  const detailVisible = useMemo(
-    () =>
-      !isSettingsNav &&
-      nav !== 'templates' &&
-      !isLegalNav &&
-      selectedPrompt !== null,
-    [isLegalNav, isSettingsNav, nav, selectedPrompt]
-  )
-  const favoriteCount = useMemo(() => prompts.filter((item) => item.favorite).length, [prompts])
+
   const latestUpdated = useMemo(() => {
     if (prompts.length === 0) {
       return null
@@ -181,32 +105,16 @@ export default function Routes() {
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
       .updatedAt
   }, [prompts])
+
   const activeMarketplaceTheme = useMemo(
     () => marketplaceState.themes.find((themeItem) => themeItem.id === marketplaceState.activeThemeId) ?? null,
     [marketplaceState]
   )
-  const enabledPluginIds = useMemo(
-    () => marketplaceState.plugins.filter((plugin) => plugin.enabled).map((plugin) => plugin.id),
-    [marketplaceState.plugins]
-  )
-  const isBrowserMode = useMemo(() => !hasDesktopBridge(), [])
-  const canReorderPrompts = nav === 'all' && !activeTag && search.trim().length === 0 && prompts.length > 1
 
   useEffect(() => {
     applyAppearance(appearance, resolveTheme(theme))
     applyTheme(theme, activeMarketplaceTheme?.tokens)
   }, [activeMarketplaceTheme?.tokens, appearance, theme])
-
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem('ampnotes.sidebar.collapsed')
-      if (raw === 'true') {
-        setSidebarCollapsed(true)
-      }
-    } catch {
-      // ignore storage read issues
-    }
-  }, [])
 
   const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
@@ -260,63 +168,10 @@ export default function Routes() {
     }
   }, [])
 
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev
-      try {
-        window.localStorage.setItem('ampnotes.sidebar.collapsed', String(next))
-      } catch {
-        // ignore storage write issues
-      }
-      return next
-    })
+  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'all') => {
+    setSettingsSection(section)
+    setSettingsOpen(true)
   }, [])
-
-  const openStaticPage = useCallback(
-    (section: 'about' | 'tos') => {
-      setContextMenu(null)
-      setActiveTag(null)
-      setNav(section)
-      setSelectedPromptId(null)
-      setPromptDetailMode('home')
-    },
-    [setActiveTag, setNav, setSelectedPromptId]
-  )
-
-  const handleSelectNav = useCallback(
-    (section: NavSection) => {
-      setContextMenu(null)
-      setActiveTag(null)
-      setNav(section)
-      setSelectedPromptId(null)
-
-      if (
-        section === 'all' ||
-        section === 'templates' ||
-        section === 'settings' ||
-        section === 'pluginSettings' ||
-        section === 'themeSettings'
-      ) {
-        setPromptDetailMode('home')
-        return
-      }
-
-      setPromptDetailMode('read')
-    },
-    [setActiveTag, setNav, setSelectedPromptId]
-  )
-
-  const handleSelectTag = useCallback(
-    (tagName: string | null) => {
-      setContextMenu(null)
-      setSearch('')
-      setActiveTag(tagName)
-      setNav('all')
-      setSelectedPromptId(null)
-      setPromptDetailMode('home')
-    },
-    [setActiveTag, setNav, setSearch, setSelectedPromptId]
-  )
 
   const refreshAuth = useCallback(async () => {
     const [profileList, active] = await Promise.all([api.profile.list(), api.profile.getSession()])
@@ -354,48 +209,23 @@ export default function Routes() {
     setTemplates(templateRows)
     setMarketplaceState(marketplace)
 
-    if (nav === 'templates' || SETTINGS_SECTIONS.includes(nav) || nav === 'about' || nav === 'tos') {
-      setPrompts([])
-      setSelectedPromptId(null)
-      setPromptDetailMode('home')
-      return
-    }
-
-    let rows: PromptDTO[]
-    if (nav === 'recent') {
-      rows = await api.prompt.recent(profile.id, 40)
-    } else if (search.trim()) {
-      rows = await api.search.query(profile.id, search, {
-        favorite: nav === 'favorites' ? true : undefined,
-        pinned: nav === 'pinned' ? true : undefined,
-        tag: activeTag ?? undefined,
-        limit: 200,
-        offset: 0
-      })
-    } else {
-      rows = await api.prompt.list(profile.id, {
-        favorite: nav === 'favorites' ? true : undefined,
-        pinned: nav === 'pinned' ? true : undefined,
-        tag: activeTag ?? undefined,
-        limit: 200,
-        offset: 0
-      })
-    }
+    const rows = await api.prompt.list(profile.id, {
+      tag: activeTag ?? undefined,
+      limit: 200,
+      offset: 0
+    })
 
     setPrompts(rows)
     if (rows.length === 0) {
       setSelectedPromptId(null)
-      setPromptDetailMode(nav === 'all' ? 'home' : 'read')
       return
     }
 
     const hasSelected = selectedPromptId ? rows.some((item) => item.id === selectedPromptId) : false
     if (!hasSelected) {
-      // Keep home in 3-column notebook mode by selecting first row for the feed context.
       setSelectedPromptId(rows[0].id)
-      setPromptDetailMode(nav === 'all' ? 'home' : 'read')
     }
-  }, [activeTag, api.marketplace, api.prompt, api.tag, api.template, nav, profile, search, selectedPromptId, setSelectedPromptId])
+  }, [activeTag, api.marketplace, api.prompt, api.tag, api.template, profile, selectedPromptId])
 
   useEffect(() => {
     void refreshAuth()
@@ -409,8 +239,6 @@ export default function Routes() {
     if (!newPromptOpen || !profile) {
       return
     }
-
-    setContextMenu(null)
     void api.refine.isConfigured(profile.id).then(setNewPromptRefineConfigured).catch(() => {
       setNewPromptRefineConfigured(false)
     })
@@ -441,31 +269,42 @@ export default function Routes() {
     }
   }, [api.refine, profile])
 
-  const handleCreateAndSignIn = useCallback(async (displayName: string) => {
-    const result = await api.profile.createAndSignIn(displayName)
-    setProfile(result.profile)
-    setSession(result.session)
-    setProfiles((prev) => [...prev, result.profile])
-    const [savedTheme, savedAppearance] = await Promise.all([
-      api.settings.getTheme(result.profile.id),
-      api.settings.getAppearance(result.profile.id)
-    ])
-    setTheme(savedTheme)
-    setAppearance(savedAppearance)
-  }, [api.settings])
+  const handleCreateAndSignIn = useCallback(
+    async (displayName: string) => {
+      const result = await api.profile.createAndSignIn(displayName)
+      setProfile(result.profile)
+      setSession(result.session)
+      setProfiles((prev) => [...prev, result.profile])
+      const [savedTheme, savedAppearance] = await Promise.all([
+        api.settings.getTheme(result.profile.id),
+        api.settings.getAppearance(result.profile.id)
+      ])
+      setTheme(savedTheme)
+      setAppearance(savedAppearance)
+    },
+    [api.profile, api.settings]
+  )
 
-  const handleSignIn = useCallback(async (profileId: string) => {
-    const result = await api.profile.signIn(profileId)
-    setProfile(result.profile)
-    setSession(result.session)
-    const [savedTheme, savedAppearance] = await Promise.all([
-      api.settings.getTheme(result.profile.id),
-      api.settings.getAppearance(result.profile.id)
-    ])
-    setTheme(savedTheme)
-    setAppearance(savedAppearance)
-    flashToast(`Welcome back, ${result.profile.displayName}`)
-  }, [api.settings, flashToast])
+  const handleSignIn = useCallback(
+    async (profileId: string) => {
+      const result = await api.profile.signIn(profileId)
+      setProfile(result.profile)
+      setSession(result.session)
+      const [savedTheme, savedAppearance] = await Promise.all([
+        api.settings.getTheme(result.profile.id),
+        api.settings.getAppearance(result.profile.id)
+      ])
+      setTheme(savedTheme)
+      setAppearance(savedAppearance)
+      flashToast(`Welcome back, ${result.profile.displayName}`)
+    },
+    [api.profile, api.settings, flashToast]
+  )
+
+  const handleSelectTag = useCallback((tagName: string | null) => {
+    setActiveTag(tagName)
+    setSelectedPromptId(null)
+  }, [])
 
   const handleCopy = useCallback(
     async (prompt: PromptDTO) => {
@@ -474,68 +313,69 @@ export default function Routes() {
       await refreshWorkspace()
       flashToast('Prompt copied to clipboard')
     },
-    [flashToast, refreshWorkspace]
+    [api.prompt, flashToast, refreshWorkspace]
   )
 
-  const handleCreatePrompt = useCallback(async () => {
-    setContextMenu(null)
+  const handleCreatePrompt = useCallback(() => {
     setNewPromptOpen(true)
   }, [])
 
-  const handleCreatePromptFromDraft = useCallback(async (input: {
-    title: string
-    content: string
-    category?: string
-    tags?: string[]
-    useCase?: string
-    aiTarget?: string
-  }) => {
-    if (!profile) {
-      return
-    }
-    const issues = validatePromptForSave(input)
-    if (issues.length > 0) {
-      flashToast(formatPromptValidationIssues(issues))
-      return
-    }
+  const handleCreatePromptFromDraft = useCallback(
+    async (input: {
+      title: string
+      content: string
+      category?: string
+      tags?: string[]
+      useCase?: string
+      aiTarget?: string
+    }) => {
+      if (!profile) {
+        return
+      }
+      const issues = validatePromptForSave(input)
+      if (issues.length > 0) {
+        flashToast(formatPromptValidationIssues(issues))
+        return
+      }
 
-    try {
-      const created = await api.prompt.create(profile.id, input)
+      try {
+        const created = await api.prompt.create(profile.id, input)
+        setActiveTag(null)
+        await refreshWorkspace()
+        setSelectedPromptId(created.id)
+        setNewPromptOpen(false)
+        flashToast('Prompt created')
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to create prompt'
+        flashToast(message)
+      }
+    },
+    [api.prompt, flashToast, profile, refreshWorkspace]
+  )
 
-      setActiveTag(null)
-      setNav('all')
-      await refreshWorkspace()
-      setSelectedPromptId(created.id)
-      setPromptDetailMode('home')
-      setNewPromptOpen(false)
-      flashToast('Prompt created')
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create prompt'
-      flashToast(message)
-    }
-  }, [flashToast, profile, refreshWorkspace, setActiveTag, setNav, setSelectedPromptId])
-
-  const handleRefineDraft = useCallback(async (content: string) => {
-    if (!profile) {
-      throw new Error('Profile not available')
-    }
-
-    setNewPromptRefining(true)
-    try {
-      return await api.refine.prompt({
-        profileId: profile.id,
-        content,
-        preserveIntent: true,
-        goals: 'Improve clarity, structure, and output guidance while keeping intent.'
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Refinement failed'
-      flashToast(message)
-      throw error
-    } finally {
-      setNewPromptRefining(false)
-    }
-  }, [flashToast, profile])
+  const handleRefineDraft = useCallback(
+    async (content: string) => {
+      if (!profile) {
+        throw new Error('Profile not available')
+      }
+      setNewPromptRefining(true)
+      try {
+        return await api.refine.prompt({
+          profileId: profile.id,
+          content,
+          preserveIntent: true,
+          goals: 'Improve clarity, structure, and output guidance while keeping intent.'
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Refinement failed'
+        flashToast(message)
+        throw error
+      } finally {
+        setNewPromptRefining(false)
+      }
+    },
+    [api.refine, flashToast, profile]
+  )
 
   const handleSavePrompt = useCallback(
     async (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => {
@@ -566,7 +406,7 @@ export default function Routes() {
       await refreshWorkspace()
       flashToast('Prompt saved')
     },
-    [flashToast, profile, refreshWorkspace]
+    [api.prompt, flashToast, profile, refreshWorkspace]
   )
 
   const handleDeletePrompt = useCallback(
@@ -574,76 +414,20 @@ export default function Routes() {
       if (!profile) {
         return
       }
-
       const approved = await requestConfirm({
-        title: 'Delete Page?',
+        title: 'Delete Prompt?',
         message: `Delete "${prompt.title}" permanently?`,
-        confirmLabel: 'Delete Page',
+        confirmLabel: 'Delete Prompt',
         tone: 'danger'
       })
       if (!approved) {
         return
       }
-
       await api.prompt.delete(profile.id, prompt.id)
       await refreshWorkspace()
-      flashToast('Page deleted', 'warning')
+      flashToast('Prompt deleted', 'warning')
     },
     [api.prompt, flashToast, profile, refreshWorkspace, requestConfirm]
-  )
-
-  const handleDuplicatePrompt = useCallback(
-    async (prompt: PromptDTO) => {
-      if (!profile) {
-        return
-      }
-
-      const duplicate = await api.prompt.create(profile.id, {
-        title: `${prompt.title} (Copy)`,
-        content: prompt.content,
-        category: prompt.category,
-        tags: prompt.tags,
-        useCase: prompt.useCase,
-        aiTarget: prompt.aiTarget,
-        favorite: false,
-        pinned: false
-      })
-
-      await refreshWorkspace()
-      setSelectedPromptId(duplicate.id)
-      setPromptDetailMode(nav === 'all' ? 'home' : 'read')
-      flashToast('Prompt duplicated')
-    },
-    [flashToast, nav, profile, refreshWorkspace, setSelectedPromptId]
-  )
-
-  const handleReorderPrompts = useCallback(
-    async (draggedId: string, targetId: string) => {
-      if (!profile || draggedId === targetId || !canReorderPrompts) {
-        return
-      }
-
-      const draggedIndex = prompts.findIndex((prompt) => prompt.id === draggedId)
-      const targetIndex = prompts.findIndex((prompt) => prompt.id === targetId)
-      if (draggedIndex < 0 || targetIndex < 0) {
-        return
-      }
-
-      const nextPrompts = [...prompts]
-      const [draggedPrompt] = nextPrompts.splice(draggedIndex, 1)
-      nextPrompts.splice(targetIndex, 0, draggedPrompt)
-      setPrompts(nextPrompts)
-
-      try {
-        const reordered = await api.prompt.reorder(profile.id, nextPrompts.map((prompt) => prompt.id))
-        setPrompts(reordered)
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Could not reorder prompts'
-        flashToast(message, 'warning')
-        await refreshWorkspace()
-      }
-    },
-    [api.prompt, canReorderPrompts, flashToast, profile, prompts, refreshWorkspace]
   )
 
   const handleUseTemplate = useCallback(
@@ -651,7 +435,6 @@ export default function Routes() {
       if (!profile) {
         return
       }
-
       const created = await api.prompt.create(profile.id, {
         title: template.title,
         content: template.content,
@@ -660,13 +443,11 @@ export default function Routes() {
       })
 
       setActiveTag(null)
-      setNav('all')
       await refreshWorkspace()
       setSelectedPromptId(created.id)
-      setPromptDetailMode('home')
       flashToast('Template added as prompt')
     },
-    [flashToast, profile, refreshWorkspace, setActiveTag, setNav, setSelectedPromptId]
+    [api.prompt, flashToast, profile, refreshWorkspace]
   )
 
   const handleAddPromptAsTemplate = useCallback(
@@ -724,14 +505,13 @@ export default function Routes() {
       if (!profile) {
         return
       }
-
       const configured = await api.refine.isConfigured(profile.id)
       setRefineConfigured(configured)
       setRefineResult(null)
       setSelectedPromptId(prompt.id)
       setRefineOpen(true)
     },
-    [profile]
+    [api.refine, profile]
   )
 
   const handleValidatePrompt = useCallback(
@@ -742,7 +522,7 @@ export default function Routes() {
       const configured = await api.refine.isConfigured(profile.id)
       if (!configured) {
         flashToast('Set your Groq API key in Settings before validation.')
-        setNav('settings')
+        openSettings('general')
         return
       }
 
@@ -750,7 +530,7 @@ export default function Routes() {
       try {
         await api.prompt.validateWithGroq(profile.id, prompt.id)
         await refreshWorkspace()
-        flashToast('Prompt validated with Groq')
+        flashToast('Prompt validated')
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Validation failed'
         flashToast(message)
@@ -758,7 +538,7 @@ export default function Routes() {
         setValidatingPromptId(null)
       }
     },
-    [api.prompt, api.refine, flashToast, profile, refreshWorkspace, setNav]
+    [api.prompt, api.refine, flashToast, openSettings, profile, refreshWorkspace]
   )
 
   const handleRunRefine = useCallback(
@@ -785,7 +565,7 @@ export default function Routes() {
         setRefineLoading(false)
       }
     },
-    [flashToast, profile, selectedPrompt]
+    [api.refine, flashToast, profile, selectedPrompt]
   )
 
   const handleApplyRefine = useCallback(
@@ -793,7 +573,6 @@ export default function Routes() {
       if (!profile || !selectedPrompt || !refineResult) {
         return
       }
-
       await api.prompt.applyRefinement({
         profileId: profile.id,
         promptId: selectedPrompt.id,
@@ -809,26 +588,29 @@ export default function Routes() {
       setRefineResult(null)
       flashToast(mode === 'replace' ? 'Refined prompt applied' : 'Refined variant saved')
     },
-    [flashToast, profile, refineResult, refreshWorkspace, selectedPrompt]
+    [api.prompt, flashToast, profile, refineResult, refreshWorkspace, selectedPrompt]
   )
 
-  const handleGenerateShare = useCallback(async (promptId: string) => {
-    const sharePrompt = prompts.find((item) => item.id === promptId)
-    if (!sharePrompt) {
-      flashToast('Select a prompt first')
-      return
-    }
-    const issues = validatePromptForShare(sharePrompt)
-    if (issues.length > 0) {
-      flashToast(formatPromptValidationIssues(issues))
-      return
-    }
+  const handleGenerateShare = useCallback(
+    async (promptId: string) => {
+      const sharePrompt = prompts.find((item) => item.id === promptId)
+      if (!sharePrompt) {
+        flashToast('Select a prompt first')
+        return
+      }
+      const issues = validatePromptForShare(sharePrompt)
+      if (issues.length > 0) {
+        flashToast(formatPromptValidationIssues(issues))
+        return
+      }
 
-    const generated = await api.share.generateCode(promptId)
-    setShareCode(generated.encoded)
-    await navigator.clipboard.writeText(generated.encoded)
-    flashToast('Share code copied')
-  }, [flashToast, prompts])
+      const generated = await api.share.generateCode(promptId)
+      setShareCode(generated.encoded)
+      await navigator.clipboard.writeText(generated.encoded)
+      flashToast('Share code copied')
+    },
+    [api.share, flashToast, prompts]
+  )
 
   const handleExportShare = useCallback(
     async (promptId: string, format: 'json' | 'txt') => {
@@ -849,7 +631,7 @@ export default function Routes() {
       await api.share.exportPrompt(profile.id, promptId, format)
       flashToast(`Prompt exported as ${format.toUpperCase()}`)
     },
-    [flashToast, profile, prompts]
+    [api.share, flashToast, profile, prompts]
   )
 
   const handleExportSelected = useCallback(
@@ -875,7 +657,6 @@ export default function Routes() {
       if (!profile) {
         return
       }
-
       const result = await api.share.importCode(profile.id, encoded, 'import_copy')
       if (result.imported) {
         await refreshWorkspace()
@@ -884,20 +665,19 @@ export default function Routes() {
         flashToast(result.reason ?? 'Import skipped')
       }
     },
-    [flashToast, profile, refreshWorkspace]
+    [api.share, flashToast, profile, refreshWorkspace]
   )
 
   const handleImportFile = useCallback(async () => {
     if (!profile) {
       return
     }
-
     const result = await api.share.importFile(profile.id)
     if (result.imported) {
       await refreshWorkspace()
       flashToast('Prompt imported from file')
     }
-  }, [flashToast, profile, refreshWorkspace])
+  }, [api.share, flashToast, profile, refreshWorkspace])
 
   const handleRegisterPlugin = useCallback(
     async (manifest: CreatePluginManifestInput) => {
@@ -906,9 +686,53 @@ export default function Routes() {
       }
       await api.marketplace.registerPlugin(profile.id, manifest)
       await refreshWorkspace()
-      flashToast('Plugin registered')
+      flashToast('Plugin saved')
     },
     [api.marketplace, flashToast, profile, refreshWorkspace]
+  )
+
+  const handleImportPluginManifestFile = useCallback(async () => {
+    if (!profile) {
+      return
+    }
+    const result = await api.marketplace.importPluginManifestFile(profile.id)
+    if (!result.ok && !result.canceled) {
+      throw new Error(result.reason ?? 'Plugin import failed')
+    }
+    if (result.ok) {
+      await refreshWorkspace()
+      flashToast('Plugin manifest imported from file')
+    }
+  }, [api.marketplace, flashToast, profile, refreshWorkspace])
+
+  const handleImportPluginFromFolder = useCallback(async () => {
+    if (!profile) {
+      return
+    }
+    const result = await api.marketplace.importPluginFromFolder(profile.id)
+    if (!result.ok && !result.canceled) {
+      throw new Error(result.reason ?? 'Plugin folder import failed')
+    }
+    if (result.ok) {
+      await refreshWorkspace()
+      flashToast('Plugin imported from local folder')
+    }
+  }, [api.marketplace, flashToast, profile, refreshWorkspace])
+
+  const handleExportPluginManifest = useCallback(
+    async (pluginId: string) => {
+      if (!profile) {
+        return
+      }
+      const result = await api.marketplace.exportPluginManifest(profile.id, pluginId)
+      if (!result.ok && !result.canceled) {
+        throw new Error(result.reason ?? 'Plugin export failed')
+      }
+      if (result.ok) {
+        flashToast('Plugin manifest exported')
+      }
+    },
+    [api.marketplace, flashToast, profile]
   )
 
   const handleTogglePlugin = useCallback(
@@ -952,9 +776,53 @@ export default function Routes() {
       }
       await api.marketplace.registerTheme(profile.id, manifest)
       await refreshWorkspace()
-      flashToast('Theme registered')
+      flashToast('Theme saved')
     },
     [api.marketplace, flashToast, profile, refreshWorkspace]
+  )
+
+  const handleImportThemeManifestFile = useCallback(async () => {
+    if (!profile) {
+      return
+    }
+    const result = await api.marketplace.importThemeManifestFile(profile.id)
+    if (!result.ok && !result.canceled) {
+      throw new Error(result.reason ?? 'Theme import failed')
+    }
+    if (result.ok) {
+      await refreshWorkspace()
+      flashToast('Theme manifest imported from file')
+    }
+  }, [api.marketplace, flashToast, profile, refreshWorkspace])
+
+  const handleImportThemeFromFolder = useCallback(async () => {
+    if (!profile) {
+      return
+    }
+    const result = await api.marketplace.importThemeFromFolder(profile.id)
+    if (!result.ok && !result.canceled) {
+      throw new Error(result.reason ?? 'Theme folder import failed')
+    }
+    if (result.ok) {
+      await refreshWorkspace()
+      flashToast('Theme imported from local folder')
+    }
+  }, [api.marketplace, flashToast, profile, refreshWorkspace])
+
+  const handleExportThemeManifest = useCallback(
+    async (themeId: string) => {
+      if (!profile) {
+        return
+      }
+      const result = await api.marketplace.exportThemeManifest(profile.id, themeId)
+      if (!result.ok && !result.canceled) {
+        throw new Error(result.reason ?? 'Theme export failed')
+      }
+      if (result.ok) {
+        flashToast('Theme manifest exported')
+      }
+    },
+    [api.marketplace, flashToast, profile]
   )
 
   const handleSetActiveTheme = useCallback(
@@ -964,7 +832,7 @@ export default function Routes() {
       }
       await api.marketplace.setActiveTheme(profile.id, themeId)
       await refreshWorkspace()
-      flashToast(themeId ? 'Marketplace theme activated' : 'Marketplace theme cleared')
+      flashToast(themeId ? 'Theme activated' : 'Theme cleared')
     },
     [api.marketplace, flashToast, profile, refreshWorkspace]
   )
@@ -992,379 +860,101 @@ export default function Routes() {
   )
 
   if (!profile || !session) {
-    return (
-      <AuthView
-        profiles={profiles}
-        onCreateAndSignIn={handleCreateAndSignIn}
-        onSignIn={handleSignIn}
-      />
-    )
+    return <AuthView profiles={profiles} onCreateAndSignIn={handleCreateAndSignIn} onSignIn={handleSignIn} />
   }
 
   return (
     <>
-      <AppShell
-        sidebarCollapsed={sidebarCollapsed}
-        detailVisible={detailVisible}
-        sidebar={
-          <div className="flex h-full flex-col gap-4">
-            <div className="flex items-center justify-between gap-2">
-              {!sidebarCollapsed && (
-                <div>
-                  <p className="editorial-heading mt-1 text-[1.85rem] font-semibold leading-tight">AMP</p>
-                  <p className="text-sm text-muted">All My Prompts</p>
-                </div>
-              )}
-              <Button size="sm" variant="ghost" type="button" onClick={toggleSidebar}>
-                {sidebarCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={16} />}
-              </Button>
-            </div>
-
-            <Button
-              variant="primary"
-              className={
-                sidebarCollapsed
-                  ? 'border-transparent shadow-none hover:border-transparent'
-                  : 'justify-start text-left border-transparent shadow-none hover:border-transparent'
-              }
-              onClick={handleCreatePrompt}
-            >
-              <FilePlus2 size={sidebarCollapsed ? 19 : 15} className={sidebarCollapsed ? '' : 'mr-2'} />
-              {!sidebarCollapsed && 'New Page'}
-            </Button>
-
-            <nav className="space-y-1">
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon
-                const isActiveNav = nav === item.id && !(item.id === 'all' && activeTag)
-                return (
-                  <button
-                    key={item.id}
-                    className={`inline-flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                      isActiveNav ? 'bg-surface2 text-text' : 'text-muted hover:bg-surface2'
-                    }`}
-                    onClick={() => handleSelectNav(item.id)}
-                    title={item.label}
-                  >
-                    <Icon size={sidebarCollapsed ? 19 : 14} className={sidebarCollapsed ? '' : 'mr-2'} />
-                    {!sidebarCollapsed && item.label}
-                  </button>
-                )
-              })}
-            </nav>
-
-            {!sidebarCollapsed && (
-              <div className="space-y-4">
-                <div className="border-t border-line/20 pt-4">
-                  <p className="mb-2 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                    <Tag size={12} />
-                    Tags
-                  </p>
-                  <TagList
-                    tags={tags}
-                    activeTag={activeTag}
-                    allTagsActive={nav === 'all' && activeTag === null}
-                    onSelectTag={handleSelectTag}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="mt-auto grid gap-2">
-              <Button
-                variant="secondary"
-                className={
-                  sidebarCollapsed
-                    ? 'border-line/20 bg-accent/10 hover:border-line/20 hover:bg-accent/15'
-                    : 'w-full [justify-content:flex-start] text-left border-line/20 bg-accent/10 hover:border-line/20 hover:bg-accent/15'
-                }
-                onClick={() => {
-                  setContextMenu(null)
-                  setShareOpen(true)
-                }}
-                title="Share / Import"
-              >
-                <Import size={sidebarCollapsed ? 19 : 15} className={sidebarCollapsed ? '' : 'mr-2 shrink-0'} />
-                {!sidebarCollapsed && 'Share / Import'}
-              </Button>
-              <Button
-                variant="secondary"
-                className={
-                  sidebarCollapsed
-                    ? 'border-line/20 hover:border-line/20'
-                    : 'w-full [justify-content:flex-start] text-left border-line/20 hover:border-line/20'
-                }
-                onClick={() => {
-                  handleSelectNav('settings')
-                }}
-                title="Settings"
-              >
-                <Settings size={sidebarCollapsed ? 19 : 15} className={sidebarCollapsed ? '' : 'mr-2 shrink-0'} />
-                {!sidebarCollapsed && 'Settings'}
-              </Button>
-            </div>
-          </div>
-        }
-        topbar={
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {!isSettingsNav && !isLegalNav && (
-              <>
-                <div className="inline-flex items-center gap-2 rounded-lg border border-line/20 bg-surface2 px-2.5 py-1.5 text-muted">
-                  <SearchIcon size={14} />
-                </div>
-                <div className="min-w-0 flex-[1_1_200px] sm:flex-[1_1_260px]">
-                  <SearchInput value={search} onChange={setSearch} />
-                </div>
-                <span className="mono-meta rounded-md border border-line/20 bg-surface2 px-3 py-1 text-xs uppercase tracking-wide text-muted">
-                  {nav === 'templates' ? `${templates.length} templates` : `${prompts.length} pages`}
-                </span>
-                {isBrowserMode && (
-                  <span className="mono-meta rounded-md border border-success/20 bg-success/10 px-3 py-1 text-xs uppercase tracking-wide text-success">
-                    Browser Mode
-                  </span>
-                )}
-              </>
-            )}
-            {(isSettingsNav || isLegalNav) && (
-              <h2 className="editorial-heading text-2xl font-semibold">{activeNavLabel}</h2>
-            )}
-          </div>
-        }
-        content={
-          isSettingsNav ? (
-            <SettingsDialog
-              asPage
-              section={nav === 'pluginSettings' ? 'plugins' : nav === 'themeSettings' ? 'themes' : 'general'}
-              currentTheme={theme}
-              appearance={appearance}
-              marketplaceState={marketplaceState}
-              onThemeChange={async (nextTheme) => {
-                setTheme(nextTheme)
-                await api.settings.setTheme(profile.id, nextTheme)
-              }}
-              onAppearanceChange={async (nextAppearance) => {
-                setAppearance(nextAppearance)
-                await api.settings.setAppearance(profile.id, nextAppearance)
-              }}
-              onRegisterPlugin={handleRegisterPlugin}
-              onTogglePlugin={handleTogglePlugin}
-              onRemovePlugin={handleRemovePlugin}
-              onOpenPluginFolder={handleOpenPluginFolder}
-              onRegisterTheme={handleRegisterTheme}
-              onSetActiveMarketplaceTheme={handleSetActiveTheme}
-              onRemoveTheme={handleRemoveTheme}
-              onOpenThemeFolder={handleOpenThemeFolder}
-              onSaveGroqKey={async (apiKey) => {
-                await api.refine.saveApiKey(profile.id, apiKey)
-                setGroqKeyConfigured(true)
-                flashToast('Groq API key saved')
-              }}
-              onClearGroqKey={async () => {
-                await api.refine.clearApiKey(profile.id)
-                setGroqKeyConfigured(false)
-                flashToast('Groq API key cleared')
-              }}
-              isGroqKeyConfigured={groqKeyConfigured}
-              onSignOut={async () => {
-                await api.profile.signOut()
-                await refreshAuth()
-              }}
-            />
-          ) : nav === 'templates' ? (
-            <TemplatePanel
-              templates={templates}
-              onUseTemplate={handleUseTemplate}
-              onCreateTemplate={handleCreateTemplate}
-              onUpdateTemplate={handleUpdateTemplate}
-              onDeleteTemplate={handleDeleteTemplate}
-            />
-          ) : nav === 'about' ? (
-            <AboutPage />
-          ) : nav === 'tos' ? (
-            <TermsOfServicePage />
-          ) : (
-            <div className="grid h-full min-h-0 content-start gap-3">
-              <div className="flex items-center justify-between gap-2 border-b border-line/20 pb-2">
-                <div>
-                  <p className="mono-meta text-xs uppercase tracking-[0.2em] text-muted">Section</p>
-                  <p className="text-sm font-semibold text-text">{activeNavLabel}</p>
-                </div>
-                {nav === 'all' && latestUpdated && (
-                  <p className="mono-meta text-xs uppercase tracking-wide text-muted">
-                    Last Updated {new Date(latestUpdated).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-
-              {nav === 'all' && (
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-lg border border-line/20 bg-surface px-3 py-2">
-                    <p className="mono-meta text-[10px] uppercase tracking-wide text-muted">Total Pages</p>
-                    <p className="text-lg font-semibold">{prompts.length}</p>
-                  </div>
-                  <div className="rounded-lg border border-line/20 bg-surface px-3 py-2">
-                    <p className="mono-meta text-[10px] uppercase tracking-wide text-muted">Starred</p>
-                    <p className="text-lg font-semibold">{favoriteCount}</p>
-                  </div>
-                  <div className="rounded-lg border border-line/20 bg-surface px-3 py-2">
-                    <p className="mono-meta text-[10px] uppercase tracking-wide text-muted">Templates</p>
-                    <p className="text-lg font-semibold">{templates.length}</p>
-                  </div>
-                </div>
-              )}
-
-              {prompts.length === 0 ? (
-                <div className="grid place-items-center rounded-xl border border-dashed border-line/20 bg-surface p-10 text-center">
-                  <h2 className="editorial-heading text-3xl font-semibold">No pages here yet</h2>
-                  <p className="mt-2 max-w-sm text-sm text-muted">
-                    Create a page or import one. Your editable prompt will appear in the right pane.
-                  </p>
-                </div>
-              ) : (
-                <div className="scroll-y min-h-0 space-y-3 overflow-y-auto rounded-xl border border-line/20 bg-surface p-3">
-                  {prompts.map((prompt) => (
-                    <PromptCard
-                      key={prompt.id}
-                      prompt={prompt}
-                      selected={selectedPromptId === prompt.id}
-                      isTemplateCopy={templates.some(
-                        (template) => template.title === prompt.title && template.content === prompt.content
-                      )}
-                      reorderEnabled={canReorderPrompts}
-                      dragging={draggingPromptId === prompt.id}
-                      onSelect={() => {
-                        setSelectedPromptId(prompt.id)
-                        setPromptDetailMode('read')
-                      }}
-                      onContextMenu={(event) => {
-                        event.preventDefault()
-                        setSelectedPromptId(prompt.id)
-                        setPromptDetailMode('read')
-                        setContextMenu({
-                          x: event.clientX,
-                          y: event.clientY,
-                          prompt
-                        })
-                      }}
-                      onDragStart={(event) => {
-                        if (!canReorderPrompts) {
-                          return
-                        }
-                        event.stopPropagation()
-                        event.dataTransfer.effectAllowed = 'move'
-                        event.dataTransfer.setData('text/plain', prompt.id)
-                        setDraggingPromptId(prompt.id)
-                      }}
-                      onDragOver={(event) => {
-                        if (!canReorderPrompts || !draggingPromptId || draggingPromptId === prompt.id) {
-                          return
-                        }
-                        event.preventDefault()
-                        event.dataTransfer.dropEffect = 'move'
-                      }}
-                      onDrop={(event) => {
-                        if (!canReorderPrompts) {
-                          return
-                        }
-                        event.preventDefault()
-                        event.stopPropagation()
-                        const draggedId = event.dataTransfer.getData('text/plain') || draggingPromptId
-                        setDraggingPromptId(null)
-                        if (draggedId) {
-                          void handleReorderPrompts(draggedId, prompt.id)
-                        }
-                      }}
-                      onDragEnd={() => setDraggingPromptId(null)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        }
-        detail={
-          nav === 'all' && promptDetailMode === 'home' ? (
-            <PromptHomeFeed
-              prompts={prompts}
-              onReadPrompt={(prompt) => {
-                setSelectedPromptId(prompt.id)
-                setPromptDetailMode('read')
-              }}
-              onUsePrompt={(prompt) => {
-                setSelectedPromptId(prompt.id)
-                setPromptDetailMode('edit')
-              }}
-              onImprovePrompt={(prompt) => {
-                void handleOpenRefine(prompt)
-              }}
-            />
-          ) : promptDetailMode === 'read' ? (
-            <PromptReader
-              prompt={selectedPrompt}
-              onUsePrompt={(prompt) => {
-                setSelectedPromptId(prompt.id)
-                setPromptDetailMode('edit')
-              }}
-              onImprovePrompt={(prompt) => {
-                void handleOpenRefine(prompt)
-              }}
-            />
-          ) : (
-            <PromptEditor
-              prompt={selectedPrompt}
-              categorySuggestions={categories.map((item) => item.name)}
-              tagSuggestions={tags.map((item) => item.name)}
-              onSave={handleSavePrompt}
-              onDelete={handleDeletePrompt}
-              onRefine={handleOpenRefine}
-              onValidate={handleValidatePrompt}
-              onShare={(prompt) => {
-                setSelectedPromptId(prompt.id)
-                setShareOpen(true)
-              }}
-              onAddAsTemplate={handleAddPromptAsTemplate}
-              isValidating={selectedPrompt ? validatingPromptId === selectedPrompt.id : false}
-              enabledPluginIds={enabledPluginIds}
-            />
-          )
-        }
-        footer={
-          <div className="grid w-full items-center gap-2 text-sm text-muted sm:grid-cols-[1fr_auto_1fr]">
-            <span className="hidden sm:block" />
-            <p className="text-center">© {new Date().getFullYear()} AMP</p>
-            <div className="flex items-center justify-center gap-3 sm:justify-self-end">
-              <a
-                href="#"
-                className="inline-flex items-center gap-1.5 font-medium text-muted transition-colors hover:text-text"
-                onClick={(event) => event.preventDefault()}
-              >
-                <ShoppingBag size={14} />
-                Marketplace
-              </a>
-              <span aria-hidden className="text-border">
-                |
-              </span>
-              <button
-                type="button"
-                className="font-medium text-muted transition-colors hover:text-text"
-                onClick={() => openStaticPage('about')}
-              >
-                About
-              </button>
-              <span aria-hidden className="text-border">
-                |
-              </span>
-              <button
-                type="button"
-                className="font-medium text-muted transition-colors hover:text-text"
-                onClick={() => openStaticPage('tos')}
-              >
-                ToS
-              </button>
-            </div>
-          </div>
-        }
+      <NeoApp
+        profileName={profile.displayName}
+        prompts={prompts}
+        templates={templates}
+        tags={tags}
+        activeTag={activeTag}
+        latestUpdated={latestUpdated}
+        selectedPromptId={selectedPromptId}
+        validatingPromptId={validatingPromptId}
+        onSelectPromptId={setSelectedPromptId}
+        onSelectTag={handleSelectTag}
+        onCreatePrompt={handleCreatePrompt}
+        onOpenShareImport={() => setShareOpen(true)}
+        onOpenSettings={() => openSettings('general')}
+        onOpenPlugins={() => openSettings('plugins')}
+        onOpenThemes={() => openSettings('themes')}
+        onOpenAbout={() => setLegalPage('about')}
+        onOpenTos={() => setLegalPage('tos')}
+        onOpenMarketplace={() => flashToast('Marketplace publishing is coming soon.')}
+        onCopyPrompt={handleCopy}
+        onSavePrompt={handleSavePrompt}
+        onDeletePrompt={handleDeletePrompt}
+        onRefinePrompt={handleOpenRefine}
+        onValidatePrompt={handleValidatePrompt}
+        onSharePrompt={(prompt) => {
+          setSelectedPromptId(prompt.id)
+          setShareOpen(true)
+        }}
+        onAddAsTemplate={handleAddPromptAsTemplate}
+        onUseTemplate={handleUseTemplate}
+        onCreateTemplate={handleCreateTemplate}
+        onUpdateTemplate={handleUpdateTemplate}
+        onDeleteTemplate={handleDeleteTemplate}
       />
+
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        section={settingsSection}
+        currentTheme={theme}
+        appearance={appearance}
+        marketplaceState={marketplaceState}
+        onThemeChange={async (nextTheme) => {
+          setTheme(nextTheme)
+          await api.settings.setTheme(profile.id, nextTheme)
+        }}
+        onAppearanceChange={async (nextAppearance) => {
+          setAppearance(nextAppearance)
+          await api.settings.setAppearance(profile.id, nextAppearance)
+        }}
+        onRegisterPlugin={handleRegisterPlugin}
+        onImportPluginManifestFile={handleImportPluginManifestFile}
+        onImportPluginFromFolder={handleImportPluginFromFolder}
+        onExportPluginManifest={handleExportPluginManifest}
+        onTogglePlugin={handleTogglePlugin}
+        onRemovePlugin={handleRemovePlugin}
+        onOpenPluginFolder={handleOpenPluginFolder}
+        onRegisterTheme={handleRegisterTheme}
+        onImportThemeManifestFile={handleImportThemeManifestFile}
+        onImportThemeFromFolder={handleImportThemeFromFolder}
+        onExportThemeManifest={handleExportThemeManifest}
+        onSetActiveMarketplaceTheme={handleSetActiveTheme}
+        onRemoveTheme={handleRemoveTheme}
+        onOpenThemeFolder={handleOpenThemeFolder}
+        onSaveGroqKey={async (apiKey) => {
+          await api.refine.saveApiKey(profile.id, apiKey)
+          setGroqKeyConfigured(true)
+          flashToast('Groq API key saved')
+        }}
+        onClearGroqKey={async () => {
+          await api.refine.clearApiKey(profile.id)
+          setGroqKeyConfigured(false)
+          flashToast('Groq API key cleared')
+        }}
+        isGroqKeyConfigured={groqKeyConfigured}
+        onSignOut={async () => {
+          await api.profile.signOut()
+          setSettingsOpen(false)
+          await refreshAuth()
+        }}
+      />
+
+      <Modal
+        open={legalPage !== null}
+        onClose={() => setLegalPage(null)}
+        title={legalPage === 'about' ? 'About AMP' : 'Terms of Service'}
+        widthClass="max-w-5xl"
+      >
+        {legalPage === 'about' ? <AboutPage /> : <TermsOfServicePage />}
+      </Modal>
 
       <NewPromptModal
         open={newPromptOpen}
@@ -1372,58 +962,14 @@ export default function Routes() {
         isRefining={newPromptRefining}
         categorySuggestions={categories.map((item) => item.name)}
         tagSuggestions={tags.map((item) => item.name)}
-        onClose={() => {
-          setContextMenu(null)
-          setNewPromptOpen(false)
-        }}
+        onClose={() => setNewPromptOpen(false)}
         onConfigureRefine={() => {
           setNewPromptOpen(false)
-          handleSelectNav('settings')
+          openSettings('general')
           flashToast('Add your Groq API key, then run Improve Draft.')
         }}
         onCreate={handleCreatePromptFromDraft}
         onRefine={handleRefineDraft}
-      />
-
-      <PromptContextMenu
-        open={Boolean(contextMenu)}
-        x={contextMenu?.x ?? 0}
-        y={contextMenu?.y ?? 0}
-        prompt={contextMenu?.prompt ?? null}
-        onClose={() => setContextMenu(null)}
-        onEdit={(prompt) => {
-          setSelectedPromptId(prompt.id)
-          setPromptDetailMode('edit')
-          setNav('all')
-          flashToast('Prompt opened in editor')
-        }}
-        onCopy={async (prompt) => {
-          await handleCopy(prompt)
-        }}
-        onDuplicate={async (prompt) => {
-          await handleDuplicatePrompt(prompt)
-        }}
-        onTogglePinned={async (prompt) => {
-          await api.prompt.togglePinned(profile.id, prompt.id)
-          await refreshWorkspace()
-        }}
-        onToggleFavorite={async (prompt) => {
-          await api.prompt.toggleFavorite(profile.id, prompt.id)
-          await refreshWorkspace()
-        }}
-        onShare={(prompt) => {
-          setSelectedPromptId(prompt.id)
-          setShareOpen(true)
-        }}
-        onRefine={(prompt) => {
-          void handleOpenRefine(prompt)
-        }}
-        onAddAsTemplate={async (prompt) => {
-          await handleAddPromptAsTemplate(prompt)
-        }}
-        onDelete={async (prompt) => {
-          await handleDeletePrompt(prompt)
-        }}
       />
 
       <RefineModal
