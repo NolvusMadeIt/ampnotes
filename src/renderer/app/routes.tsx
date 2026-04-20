@@ -9,7 +9,6 @@ import { RefineModal } from '@renderer/features/refine/RefineModal'
 import { ShareDialog } from '@renderer/features/sharing/ShareDialog'
 import { ToastHost, type AppToast } from '@renderer/components/ui/ToastHost'
 import { ConfirmDialog } from '@renderer/components/ui/ConfirmDialog'
-import { Modal } from '@renderer/components/ui/Modal'
 import { getApi } from '@renderer/lib/api-client'
 import { applyAppearance, applyTheme, resolveTheme } from '@renderer/lib/theme'
 import {
@@ -18,6 +17,7 @@ import {
   validatePromptForShare
 } from '@shared/validation/prompt'
 import type {
+  AdminProfileDTO,
   AppearanceSettingsDTO,
   CreatePluginManifestInput,
   CreateThemeManifestInput,
@@ -36,14 +36,91 @@ const EMPTY_MARKETPLACE_STATE: MarketplaceStateDTO = {
   activeThemeId: null
 }
 
+const MARKETPLACE_URL = 'https://nolvusmadeit.github.io/ampnotes/'
+
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
   themePreset: 'midnight'
 }
 
+const SESSION_TTL_MS = 48 * 60 * 60 * 1000
+const DEFAULT_APP_VERSION = '0.1.2'
+
+function AppFooter({
+  version,
+  onAbout,
+  onTos
+}: {
+  version: string
+  onAbout: () => void
+  onTos: () => void
+}) {
+  return (
+    <footer className="flex h-8 shrink-0 items-center bg-surface px-4 text-xs text-muted">
+      <span>© 2026 AMP</span>
+      <div className="ml-auto flex items-center gap-3">
+        <button type="button" className="transition-colors hover:text-text" onClick={onAbout}>
+          About
+        </button>
+        <button type="button" className="transition-colors hover:text-text" onClick={onTos}>
+          ToS
+        </button>
+        <span className="mono-meta">v{version}</span>
+      </div>
+    </footer>
+  )
+}
+
+function AppTopNav({
+  title,
+  onSettings,
+  onMarketplace,
+  onAbout,
+  onTos,
+  onCheckForUpdates,
+  onClose
+}: {
+  title: string
+  onSettings: () => void
+  onMarketplace: () => void
+  onAbout: () => void
+  onTos: () => void
+  onCheckForUpdates: () => void
+  onClose?: () => void
+}) {
+  return (
+    <header className="flex items-center gap-4 border-b border-line/20 bg-surface px-5 py-3">
+      <h2 className="editorial-heading text-xl font-semibold">{title}</h2>
+      <nav className="ml-auto flex items-center gap-2 text-sm">
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onMarketplace}>
+          Marketplace
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onSettings}>
+          Settings
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onAbout}>
+          About
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onTos}>
+          ToS
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onCheckForUpdates}>
+          Updates
+        </button>
+        {onClose ? (
+          <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onClose}>
+            Close
+          </button>
+        ) : null}
+      </nav>
+    </header>
+  )
+}
+
 export default function Routes() {
   const api = useMemo(() => getApi(), [])
+  const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION)
   const [profiles, setProfiles] = useState<ProfileDTO[]>([])
   const [profile, setProfile] = useState<ProfileDTO | null>(null)
   const [session, setSession] = useState<SessionDTO | null>(null)
@@ -59,8 +136,9 @@ export default function Routes() {
   const [toasts, setToasts] = useState<AppToast[]>([])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'all'>('all')
+  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'admin' | 'all'>('all')
   const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false)
 
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineConfigured, setRefineConfigured] = useState(false)
@@ -74,8 +152,10 @@ export default function Routes() {
   const [newPromptRefineConfigured, setNewPromptRefineConfigured] = useState(false)
   const [newPromptRefining, setNewPromptRefining] = useState(false)
   const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
+  const [adminProfile, setAdminProfile] = useState<AdminProfileDTO | null>(null)
 
   const toastTimersRef = useRef<Map<number, number>>(new Map())
+  const sessionExpiryTimerRef = useRef<number | null>(null)
   const toastCounterRef = useRef(1)
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -135,12 +215,31 @@ export default function Routes() {
     toastTimersRef.current.set(id, timer)
   }, [])
 
+  const handleCheckForUpdates = useCallback(async () => {
+    if (!api.app?.checkForUpdates) {
+      flashToast(`AMP ${appVersion} is up to date.`)
+      return
+    }
+    const result = await api.app.checkForUpdates()
+    if (!result.ok) {
+      flashToast(result.reason ?? 'Update check failed.', 'warning')
+      return
+    }
+    if (!result.updateAvailable) {
+      flashToast(`AMP ${result.currentVersion} is up to date.`)
+    }
+  }, [api.app, appVersion, flashToast])
+
   useEffect(() => {
     return () => {
       for (const timer of toastTimersRef.current.values()) {
         window.clearTimeout(timer)
       }
       toastTimersRef.current.clear()
+      if (sessionExpiryTimerRef.current) {
+        window.clearTimeout(sessionExpiryTimerRef.current)
+        sessionExpiryTimerRef.current = null
+      }
     }
   }, [])
 
@@ -168,7 +267,7 @@ export default function Routes() {
     }
   }, [])
 
-  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'all') => {
+  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'admin' | 'all') => {
     setSettingsSection(section)
     setSettingsOpen(true)
   }, [])
@@ -185,13 +284,58 @@ export default function Routes() {
       ])
       setTheme(savedTheme)
       setAppearance(savedAppearance)
+      if (api.settings.getAdminProfile) {
+        const admin = await api.settings.getAdminProfile(active.profile.id)
+        setAdminProfile(admin)
+      } else {
+        setAdminProfile(null)
+      }
     } else {
       setProfile(null)
       setSession(null)
       setMarketplaceState(EMPTY_MARKETPLACE_STATE)
       setAppearance(DEFAULT_APPEARANCE)
+      setAdminProfile(null)
     }
   }, [api.profile, api.settings])
+
+  useEffect(() => {
+    if (sessionExpiryTimerRef.current) {
+      window.clearTimeout(sessionExpiryTimerRef.current)
+      sessionExpiryTimerRef.current = null
+    }
+
+    if (!session) {
+      return
+    }
+
+    const signedInAtMs = Date.parse(session.signedInAt)
+    const remainingMs = Number.isFinite(signedInAtMs)
+      ? signedInAtMs + SESSION_TTL_MS - Date.now()
+      : 0
+
+    const expireSession = async () => {
+      await api.profile.signOut()
+      flashToast('Session expired. Please sign in again.', 'warning')
+      await refreshAuth()
+    }
+
+    if (remainingMs <= 0) {
+      void expireSession()
+      return
+    }
+
+    sessionExpiryTimerRef.current = window.setTimeout(() => {
+      void expireSession()
+    }, remainingMs)
+
+    return () => {
+      if (sessionExpiryTimerRef.current) {
+        window.clearTimeout(sessionExpiryTimerRef.current)
+        sessionExpiryTimerRef.current = null
+      }
+    }
+  }, [api.profile, flashToast, refreshAuth, session])
 
   const refreshWorkspace = useCallback(async () => {
     if (!profile) {
@@ -232,6 +376,16 @@ export default function Routes() {
   }, [refreshAuth])
 
   useEffect(() => {
+    if (!api.app?.getInfo) {
+      setAppVersion(DEFAULT_APP_VERSION)
+      return
+    }
+    void api.app.getInfo().then((info) => setAppVersion(info.version)).catch(() => {
+      setAppVersion(DEFAULT_APP_VERSION)
+    })
+  }, [api.app])
+
+  useEffect(() => {
     void refreshWorkspace()
   }, [refreshWorkspace])
 
@@ -269,6 +423,23 @@ export default function Routes() {
     }
   }, [api.refine, profile])
 
+  useEffect(() => {
+    if (!api.marketplace.onDeepLinkInstalled) {
+      return undefined
+    }
+
+    return api.marketplace.onDeepLinkInstalled((event) => {
+      void refreshWorkspace()
+      if (event.kind === 'theme') {
+        flashToast(
+          event.active ? `Installed "${event.name}" and set active theme.` : `Installed "${event.name}" theme.`
+        )
+        return
+      }
+      flashToast(event.enabled ? `Installed "${event.name}" and enabled plugin.` : `Installed "${event.name}" plugin.`)
+    })
+  }, [api.marketplace, flashToast, refreshWorkspace])
+
   const handleCreateAndSignIn = useCallback(
     async (displayName: string) => {
       const result = await api.profile.createAndSignIn(displayName)
@@ -281,6 +452,12 @@ export default function Routes() {
       ])
       setTheme(savedTheme)
       setAppearance(savedAppearance)
+      if (api.settings.getAdminProfile) {
+        const admin = await api.settings.getAdminProfile(result.profile.id)
+        setAdminProfile(admin)
+      } else {
+        setAdminProfile(null)
+      }
     },
     [api.profile, api.settings]
   )
@@ -296,6 +473,12 @@ export default function Routes() {
       ])
       setTheme(savedTheme)
       setAppearance(savedAppearance)
+      if (api.settings.getAdminProfile) {
+        const admin = await api.settings.getAdminProfile(result.profile.id)
+        setAdminProfile(admin)
+      } else {
+        setAdminProfile(null)
+      }
       flashToast(`Welcome back, ${result.profile.displayName}`)
     },
     [api.profile, api.settings, flashToast]
@@ -326,6 +509,7 @@ export default function Routes() {
       content: string
       category?: string
       tags?: string[]
+      folder?: string
       useCase?: string
       aiTarget?: string
     }) => {
@@ -397,6 +581,7 @@ export default function Routes() {
         content: updates.content ?? prompt.content,
         category: updates.category ?? prompt.category,
         tags: updates.tags,
+        folder: updates.folder || undefined,
         useCase: updates.useCase,
         aiTarget: updates.aiTarget,
         favorite: prompt.favorite,
@@ -866,7 +1051,9 @@ export default function Routes() {
   return (
     <>
       <NeoApp
+        profileId={profile.id}
         profileName={profile.displayName}
+        appVersion={appVersion}
         prompts={prompts}
         templates={templates}
         tags={tags}
@@ -879,11 +1066,12 @@ export default function Routes() {
         onCreatePrompt={handleCreatePrompt}
         onOpenShareImport={() => setShareOpen(true)}
         onOpenSettings={() => openSettings('general')}
-        onOpenPlugins={() => openSettings('plugins')}
-        onOpenThemes={() => openSettings('themes')}
         onOpenAbout={() => setLegalPage('about')}
         onOpenTos={() => setLegalPage('tos')}
-        onOpenMarketplace={() => flashToast('Marketplace publishing is coming soon.')}
+        onOpenMarketplace={() => {
+          setMarketplaceOpen(true)
+        }}
+        onCheckForUpdates={handleCheckForUpdates}
         onCopyPrompt={handleCopy}
         onSavePrompt={handleSavePrompt}
         onDeletePrompt={handleDeletePrompt}
@@ -900,61 +1088,172 @@ export default function Routes() {
         onDeleteTemplate={handleDeleteTemplate}
       />
 
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        section={settingsSection}
-        currentTheme={theme}
-        appearance={appearance}
-        marketplaceState={marketplaceState}
-        onThemeChange={async (nextTheme) => {
-          setTheme(nextTheme)
-          await api.settings.setTheme(profile.id, nextTheme)
-        }}
-        onAppearanceChange={async (nextAppearance) => {
-          setAppearance(nextAppearance)
-          await api.settings.setAppearance(profile.id, nextAppearance)
-        }}
-        onRegisterPlugin={handleRegisterPlugin}
-        onImportPluginManifestFile={handleImportPluginManifestFile}
-        onImportPluginFromFolder={handleImportPluginFromFolder}
-        onExportPluginManifest={handleExportPluginManifest}
-        onTogglePlugin={handleTogglePlugin}
-        onRemovePlugin={handleRemovePlugin}
-        onOpenPluginFolder={handleOpenPluginFolder}
-        onRegisterTheme={handleRegisterTheme}
-        onImportThemeManifestFile={handleImportThemeManifestFile}
-        onImportThemeFromFolder={handleImportThemeFromFolder}
-        onExportThemeManifest={handleExportThemeManifest}
-        onSetActiveMarketplaceTheme={handleSetActiveTheme}
-        onRemoveTheme={handleRemoveTheme}
-        onOpenThemeFolder={handleOpenThemeFolder}
-        onSaveGroqKey={async (apiKey) => {
-          await api.refine.saveApiKey(profile.id, apiKey)
-          setGroqKeyConfigured(true)
-          flashToast('Groq API key saved')
-        }}
-        onClearGroqKey={async () => {
-          await api.refine.clearApiKey(profile.id)
-          setGroqKeyConfigured(false)
-          flashToast('Groq API key cleared')
-        }}
-        isGroqKeyConfigured={groqKeyConfigured}
-        onSignOut={async () => {
-          await api.profile.signOut()
-          setSettingsOpen(false)
-          await refreshAuth()
-        }}
-      />
+      {settingsOpen && (
+        <div className="fixed inset-0 z-[90] bg-bg p-3">
+          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
+            <AppTopNav
+              title="Settings"
+              onSettings={() => openSettings('general')}
+              onMarketplace={() => {
+                setSettingsOpen(false)
+                setMarketplaceOpen(true)
+              }}
+              onAbout={() => {
+                setSettingsOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setSettingsOpen(false)
+                setLegalPage('tos')
+              }}
+              onCheckForUpdates={handleCheckForUpdates}
+              onClose={() => setSettingsOpen(false)}
+            />
+            <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
+              <SettingsDialog
+                asPage
+                section={settingsSection}
+                currentTheme={theme}
+                appearance={appearance}
+                marketplaceState={marketplaceState}
+                onThemeChange={async (nextTheme) => {
+                  setTheme(nextTheme)
+                  await api.settings.setTheme(profile.id, nextTheme)
+                }}
+                onAppearanceChange={async (nextAppearance) => {
+                  setAppearance(nextAppearance)
+                  await api.settings.setAppearance(profile.id, nextAppearance)
+                }}
+                onRegisterPlugin={handleRegisterPlugin}
+                onImportPluginManifestFile={handleImportPluginManifestFile}
+                onImportPluginFromFolder={handleImportPluginFromFolder}
+                onExportPluginManifest={handleExportPluginManifest}
+                onTogglePlugin={handleTogglePlugin}
+                onRemovePlugin={handleRemovePlugin}
+                onOpenPluginFolder={handleOpenPluginFolder}
+                onRegisterTheme={handleRegisterTheme}
+                onImportThemeManifestFile={handleImportThemeManifestFile}
+                onImportThemeFromFolder={handleImportThemeFromFolder}
+                onExportThemeManifest={handleExportThemeManifest}
+                onSetActiveMarketplaceTheme={handleSetActiveTheme}
+                onRemoveTheme={handleRemoveTheme}
+                onOpenThemeFolder={handleOpenThemeFolder}
+                onSaveGroqKey={async (apiKey) => {
+                  await api.refine.saveApiKey(profile.id, apiKey)
+                  setGroqKeyConfigured(true)
+                  flashToast('Groq API key saved')
+                }}
+                onClearGroqKey={async () => {
+                  await api.refine.clearApiKey(profile.id)
+                  setGroqKeyConfigured(false)
+                  flashToast('Groq API key cleared')
+                }}
+                isGroqKeyConfigured={groqKeyConfigured}
+                adminProfile={adminProfile}
+                onSaveAdminProfile={async (nextProfile) => {
+                  const updated = await api.settings.setAdminProfile(profile.id, nextProfile)
+                  setAdminProfile(updated)
+                  if (updated.displayName && updated.displayName !== profile.displayName) {
+                    flashToast(`Admin profile updated for ${updated.displayName}`)
+                  }
+                }}
+                onSetAdminPin={async (pin) => {
+                  const updated = await api.settings.setAdminPin(profile.id, pin)
+                  setAdminProfile(updated)
+                }}
+                onVerifyAdminPin={(pin) => api.settings.verifyAdminPin(profile.id, pin)}
+                onClearAdminPin={async () => {
+                  const updated = await api.settings.clearAdminPin(profile.id)
+                  setAdminProfile(updated)
+                }}
+                onSignOut={async () => {
+                  await api.profile.signOut()
+                  setSettingsOpen(false)
+                  await refreshAuth()
+                }}
+              />
+            </div>
+            <AppFooter
+              version={appVersion}
+              onAbout={() => {
+                setSettingsOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setSettingsOpen(false)
+                setLegalPage('tos')
+              }}
+            />
+          </div>
+        </div>
+      )}
 
-      <Modal
-        open={legalPage !== null}
-        onClose={() => setLegalPage(null)}
-        title={legalPage === 'about' ? 'About AMP' : 'Terms of Service'}
-        widthClass="max-w-5xl"
-      >
-        {legalPage === 'about' ? <AboutPage /> : <TermsOfServicePage />}
-      </Modal>
+      {marketplaceOpen && (
+        <div className="fixed inset-0 z-[90] bg-bg p-3">
+          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
+            <AppTopNav
+              title="Marketplace"
+              onSettings={() => {
+                setMarketplaceOpen(false)
+                openSettings('general')
+              }}
+              onMarketplace={() => setMarketplaceOpen(true)}
+              onAbout={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('tos')
+              }}
+              onCheckForUpdates={handleCheckForUpdates}
+              onClose={() => setMarketplaceOpen(false)}
+            />
+            <iframe
+              title="AMP Marketplace"
+              src={MARKETPLACE_URL}
+              className="min-h-0 flex-1 border-0 bg-bg"
+            />
+            <AppFooter
+              version={appVersion}
+              onAbout={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('tos')
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {legalPage && (
+        <div className="fixed inset-0 z-[90] bg-bg p-3">
+          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
+            <AppTopNav
+              title={legalPage === 'about' ? 'About AMP' : 'Terms of Service'}
+              onSettings={() => {
+                setLegalPage(null)
+                openSettings('general')
+              }}
+              onMarketplace={() => {
+                setLegalPage(null)
+                setMarketplaceOpen(true)
+              }}
+              onAbout={() => setLegalPage('about')}
+              onTos={() => setLegalPage('tos')}
+              onCheckForUpdates={handleCheckForUpdates}
+              onClose={() => setLegalPage(null)}
+            />
+            <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
+              {legalPage === 'about' ? <AboutPage /> : <TermsOfServicePage />}
+            </div>
+            <AppFooter version={appVersion} onAbout={() => setLegalPage('about')} onTos={() => setLegalPage('tos')} />
+          </div>
+        </div>
+      )}
 
       <NewPromptModal
         open={newPromptOpen}

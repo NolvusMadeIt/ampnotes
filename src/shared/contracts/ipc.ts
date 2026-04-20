@@ -72,6 +72,19 @@ const permissionSchema = z.enum([
   'settings.read'
 ])
 
+const socialLinksSchema = z
+  .object({
+    github: httpsUrlSchema.optional(),
+    x: httpsUrlSchema.optional(),
+    website: httpsUrlSchema.optional()
+  })
+  .partial()
+
+const exportCreditsSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  socials: socialLinksSchema.optional()
+})
+
 export const pluginManifestSchema = z.object({
   id: manifestIdSchema,
   name: z.string().trim().min(2).max(80),
@@ -80,6 +93,8 @@ export const pluginManifestSchema = z.object({
   author: z.string().trim().max(80).optional(),
   entry: safeEntrySchema.optional(),
   homepage: httpsUrlSchema.optional(),
+  socials: socialLinksSchema.optional(),
+  credits: exportCreditsSchema.optional(),
   permissions: z.array(permissionSchema).max(32).optional()
 })
 
@@ -95,8 +110,26 @@ export const themeManifestSchema = z.object({
   description: z.string().trim().max(280).optional(),
   author: z.string().trim().max(80).optional(),
   homepage: httpsUrlSchema.optional(),
+  socials: socialLinksSchema.optional(),
+  credits: exportCreditsSchema.optional(),
   tokens: themeTokenMapSchema
 })
+
+export const adminProfileSocialsSchema = socialLinksSchema
+
+export const adminProfileSchema = z.object({
+  displayName: z.string().trim().min(1).max(80),
+  avatarUrl: httpsUrlSchema.optional(),
+  socials: adminProfileSocialsSchema.optional(),
+  windowsDevicePinHintEnabled: z.boolean().optional()
+})
+
+export const adminPinSchema = z
+  .string()
+  .trim()
+  .min(4)
+  .max(32)
+  .regex(/^[0-9]+$/, 'PIN can contain numbers only')
 
 export const promptListFiltersSchema = z.object({
   search: z.string().max(240).optional(),

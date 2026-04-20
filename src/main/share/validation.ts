@@ -9,6 +9,19 @@ const sharePackageSchema = z.object({
     app: z.literal('ampnotes'),
     version: z.string()
   }),
+  credits: z
+    .object({
+      name: z.string().min(1).max(80),
+      socials: z
+        .object({
+          github: z.string().url().optional(),
+          x: z.string().url().optional(),
+          website: z.string().url().optional()
+        })
+        .partial()
+        .optional()
+    })
+    .optional(),
   prompt: z.object({
     title: z.string().min(1),
     content: z.string().min(1),
@@ -41,4 +54,28 @@ export function validateSharePackage(payload: unknown): SharePackageV1 {
 
 export function getSharePayloadHash(payload: SharePackageV1): string {
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+}
+
+const DANGEROUS_MARKERS = [
+  '<script',
+  'javascript:',
+  'vbscript:',
+  'data:text/html',
+  'powershell -enc',
+  'invoke-expression',
+  'rundll32',
+  'wmic process call create',
+  'mshta '
+]
+
+export function scanPayloadForThreats(payload: string): { ok: boolean; reason?: string } {
+  const lower = payload.toLowerCase()
+  const marker = DANGEROUS_MARKERS.find((item) => lower.includes(item))
+  if (marker) {
+    return {
+      ok: false,
+      reason: `Security scan blocked import/export content containing suspicious marker: "${marker}".`
+    }
+  }
+  return { ok: true }
 }

@@ -6,6 +6,15 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
 }
 
 const api: ApiClient = {
+  app: {
+    getInfo: () => invoke('app.getInfo'),
+    checkForUpdates: () => invoke('app.checkForUpdates')
+  },
+  window: {
+    minimize: () => invoke('window.minimize'),
+    toggleMaximize: () => invoke('window.toggleMaximize'),
+    close: () => invoke('window.close')
+  },
   profile: {
     list: () => invoke('profile.list'),
     getSession: () => invoke('profile.getSession'),
@@ -68,7 +77,12 @@ const api: ApiClient = {
     getTheme: (profileId) => invoke('settings.getTheme', { profileId }),
     setTheme: (profileId, theme) => invoke('settings.setTheme', { profileId, theme }),
     getAppearance: (profileId) => invoke('settings.getAppearance', { profileId }),
-    setAppearance: (profileId, appearance) => invoke('settings.setAppearance', { profileId, appearance })
+    setAppearance: (profileId, appearance) => invoke('settings.setAppearance', { profileId, appearance }),
+    getAdminProfile: (profileId) => invoke('settings.getAdminProfile', { profileId }),
+    setAdminProfile: (profileId, profile) => invoke('settings.setAdminProfile', { profileId, profile }),
+    setAdminPin: (profileId, pin) => invoke('settings.setAdminPin', { profileId, pin }),
+    verifyAdminPin: (profileId, pin) => invoke('settings.verifyAdminPin', { profileId, pin }),
+    clearAdminPin: (profileId) => invoke('settings.clearAdminPin', { profileId })
   },
   marketplace: {
     getState: (profileId) => invoke('marketplace.getState', { profileId }),
@@ -88,7 +102,16 @@ const api: ApiClient = {
       invoke('marketplace.exportThemeManifest', { profileId, themeId }),
     setActiveTheme: (profileId, themeId) => invoke('marketplace.setActiveTheme', { profileId, themeId }),
     removeTheme: (profileId, themeId) => invoke('marketplace.removeTheme', { profileId, themeId }),
-    openThemeFolder: (profileId, themeId) => invoke('marketplace.openThemeFolder', { profileId, themeId })
+    openThemeFolder: (profileId, themeId) => invoke('marketplace.openThemeFolder', { profileId, themeId }),
+    onDeepLinkInstalled: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        callback(payload as Parameters<typeof callback>[0])
+      }
+      ipcRenderer.on('marketplace.deepLinkInstalled', listener)
+      return () => {
+        ipcRenderer.removeListener('marketplace.deepLinkInstalled', listener)
+      }
+    }
   }
 }
 

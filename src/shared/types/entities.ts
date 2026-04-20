@@ -33,6 +33,7 @@ export interface PromptDTO {
   content: string
   category: string
   tags: string[]
+  folder?: string | null
   favorite: boolean
   pinned: boolean
   createdAt: string
@@ -88,6 +89,8 @@ export interface CreatePluginManifestInput {
   author?: string
   entry?: string
   homepage?: string
+  socials?: CreatorSocialLinks
+  credits?: ExportCredits
   permissions?: string[]
 }
 
@@ -110,7 +113,37 @@ export interface CreateThemeManifestInput {
   description?: string
   author?: string
   homepage?: string
+  socials?: CreatorSocialLinks
+  credits?: ExportCredits
   tokens: ThemeTokenMap
+}
+
+export interface CreatorSocialLinks {
+  github?: string
+  x?: string
+  website?: string
+}
+
+export interface ExportCredits {
+  name: string
+  socials?: CreatorSocialLinks
+}
+
+export interface AdminProfileDTO {
+  displayName: string
+  avatarUrl?: string
+  socials: CreatorSocialLinks
+  security: {
+    hasAdminPin: boolean
+    windowsDevicePinHintEnabled: boolean
+  }
+}
+
+export interface AdminProfileInput {
+  displayName: string
+  avatarUrl?: string
+  socials?: CreatorSocialLinks
+  windowsDevicePinHintEnabled?: boolean
 }
 
 export interface InstalledThemeDTO extends CreateThemeManifestInput {
@@ -139,11 +172,20 @@ export interface MarketplaceTransferResult {
   reason?: string
 }
 
+export interface MarketplaceDeepLinkInstalledEvent {
+  kind: 'plugin' | 'theme'
+  id: string
+  name: string
+  enabled?: boolean
+  active?: boolean
+}
+
 export interface CreatePromptInput {
   title: string
   content: string
   category?: string
   tags?: string[]
+  folder?: string
   useCase?: string
   aiTarget?: string
   favorite?: boolean
@@ -160,6 +202,7 @@ export interface PromptListFilters {
   pinned?: boolean
   category?: string
   tag?: string
+  folder?: string
   limit?: number
   offset?: number
 }
@@ -206,6 +249,7 @@ export interface SharePackageV1 {
     app: 'ampnotes'
     version: string
   }
+  credits?: ExportCredits
   prompt: SharePackagePrompt
   checksum: string
 }
@@ -225,6 +269,7 @@ export interface SelectedExportBundle {
     app: 'ampnotes'
     version: string
   }
+  credits?: ExportCredits
   prompts: SharePackageV1[]
   templates: Array<{
     id: string

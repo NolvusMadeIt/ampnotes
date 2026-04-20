@@ -1,30 +1,42 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import ampLogoUrl from '@renderer/assets/imgs/amp_logo.png'
 import {
+  ArrowUpRight,
+  ChevronRight,
+  ChevronsUpDown,
   FilePlus2,
   Filter,
+  Folder,
+  FolderPlus,
   FolderOpen,
   Heart,
   Import,
   LayoutTemplate,
+  Maximize2,
+  Minus,
   PencilLine,
   Pin,
   Search,
   Settings2,
   Sparkles,
   Star,
-  TerminalSquare
+  TerminalSquare,
+  X
 } from 'lucide-react'
 import type { PromptDTO, TemplateDTO } from '@shared/types'
 import { formatPromptValidationIssues, validatePromptForSave, validatePromptForShare } from '@shared/validation/prompt'
 import { Button } from '@renderer/components/ui/Button'
 import { GroqIcon } from '@renderer/components/ui/GroqIcon'
+import { HelpTooltip } from '@renderer/components/ui/HelpTooltip'
 import { TemplatePanel } from '@renderer/features/templates/TemplatePanel'
 
-type NeoLane = 'all' | 'ready' | 'drafts' | 'favorites' | 'recent' | 'templates'
+type NeoLane = 'all' | 'ready' | 'drafts' | 'favorites' | 'recent' | 'templates' | `folder:${string}`
 type NeoFocus = 'browse' | 'read' | 'edit'
 
 interface NeoAppProps {
+  profileId: string
   profileName: string
+  appVersion: string
   prompts: PromptDTO[]
   templates: TemplateDTO[]
   tags: Array<{ name: string; count: number }>
@@ -37,11 +49,10 @@ interface NeoAppProps {
   onCreatePrompt: () => void
   onOpenShareImport: () => void
   onOpenSettings: () => void
-  onOpenPlugins: () => void
-  onOpenThemes: () => void
   onOpenAbout: () => void
   onOpenTos: () => void
   onOpenMarketplace: () => void
+  onCheckForUpdates: () => void
   onCopyPrompt: (prompt: PromptDTO) => Promise<void>
   onSavePrompt: (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => Promise<void>
   onDeletePrompt: (prompt: PromptDTO) => Promise<void>
@@ -60,8 +71,15 @@ interface NeoEditorState {
   content: string
   category: string
   tags: string[]
+  folder: string
   useCase: string
   aiTarget: string
+}
+
+interface PromptContextMenuState {
+  promptId: string
+  x: number
+  y: number
 }
 
 function qualityScore(prompt: PromptDTO): number {
@@ -96,16 +114,53 @@ function normalizeProvider(prompt: PromptDTO): string {
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`
 }
 
-function laneButtonClass(active: boolean): string {
-  return `inline-flex w-full items-center gap-2 border px-3 py-2 text-sm transition-colors ${
-    active
-      ? 'border-accent/35 bg-accent/15 text-text'
-      : 'border-line/20 bg-surface text-muted hover:border-accent/20 hover:text-text'
+function navRowClass(active: boolean): string {
+  return `inline-flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition-colors ${
+    active ? 'bg-surface2 text-text' : 'text-muted hover:bg-surface2 hover:text-text'
   }`
 }
 
+function navSubRowClass(active: boolean): string {
+  return `inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors ${
+    active ? 'bg-surface2 text-text' : 'text-muted hover:bg-surface2 hover:text-text'
+  }`
+}
+
+function daysAgoLabel(value: string): string {
+  const date = new Date(value)
+  const time = date.getTime()
+  if (!Number.isFinite(time)) {
+    return ''
+  }
+  const oneDayMs = 24 * 60 * 60 * 1000
+  const diffMs = Date.now() - time
+  const days = Math.max(0, Math.floor(diffMs / oneDayMs))
+  if (days === 0) {
+    return 'today'
+  }
+  if (days === 1) {
+    return '1d'
+  }
+  return `${days}d`
+}
+
+function readLocalStorage(key: string): string | null {
+  if (typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
+    return null
+  }
+  return window.localStorage.getItem(key)
+}
+
+function writeLocalStorage(key: string, value: string): void {
+  if (typeof window === 'undefined' || typeof window.localStorage?.setItem !== 'function') {
+    return
+  }
+  window.localStorage.setItem(key, value)
+}
+
 export function NeoApp({
-  profileName,
+  profileId,
+  appVersion,
   prompts,
   templates,
   tags,
@@ -118,11 +173,10 @@ export function NeoApp({
   onCreatePrompt,
   onOpenShareImport,
   onOpenSettings,
-  onOpenPlugins,
-  onOpenThemes,
   onOpenAbout,
   onOpenTos,
   onOpenMarketplace,
+  onCheckForUpdates,
   onCopyPrompt,
   onSavePrompt,
   onDeletePrompt,
@@ -138,6 +192,131 @@ export function NeoApp({
   const [lane, setLane] = useState<NeoLane>('all')
   const [focus, setFocus] = useState<NeoFocus>('browse')
   const [search, setSearch] = useState('')
+  const [projectSearch, setProjectSearch] = useState('')
+  const [showProjectFilter, setShowProjectFilter] = useState(false)
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false)
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
+  const [customFolders, setCustomFolders] = useState<string[]>([])
+  const [draggedPromptId, setDraggedPromptId] = useState<string | null>(null)
+  const [promptMenu, setPromptMenu] = useState<PromptContextMenuState | null>(null)
+  const [tagFolderMap, setTagFolderMap] = useState<Record<string, string[]>>({})
+  const [hydratedStorageKey, setHydratedStorageKey] = useState<string | null>(null)
+
+  const folderStorageKey = `ampnotes.neo.custom-folders.v1:${profileId}`
+  const folderCollapseStorageKey = `ampnotes.neo.folder-collapse.v1:${profileId}`
+  const projectsCollapsedStorageKey = `ampnotes.neo.projects-collapsed.v1:${profileId}`
+  const tagFolderStorageKey = `ampnotes.neo.tag-folders.v1:${profileId}`
+
+  useEffect(() => {
+    setHydratedStorageKey(null)
+    try {
+      const rawCustom = readLocalStorage(folderStorageKey)
+      if (rawCustom) {
+        const parsed = JSON.parse(rawCustom) as unknown
+        if (Array.isArray(parsed)) {
+          setCustomFolders(
+            Array.from(
+              new Set(
+                parsed
+                  .filter((item): item is string => typeof item === 'string')
+                  .map((item) => item.trim())
+                  .filter(Boolean)
+              )
+            ).sort((a, b) => a.localeCompare(b))
+          )
+        } else {
+          setCustomFolders([])
+        }
+      } else {
+        setCustomFolders([])
+      }
+    } catch {
+      setCustomFolders([])
+    }
+
+    try {
+      const rawCollapse = readLocalStorage(folderCollapseStorageKey)
+      if (rawCollapse) {
+        const parsed = JSON.parse(rawCollapse) as unknown
+        if (parsed && typeof parsed === 'object') {
+          const next: Record<string, boolean> = {}
+          for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+            next[key] = Boolean(value)
+          }
+          setCollapsedFolders(next)
+        } else {
+          setCollapsedFolders({})
+        }
+      } else {
+        setCollapsedFolders({})
+      }
+    } catch {
+      setCollapsedFolders({})
+    }
+
+    const rawProjectsCollapsed = readLocalStorage(projectsCollapsedStorageKey)
+    setProjectsCollapsed(rawProjectsCollapsed === '1')
+
+    try {
+      const rawTagFolders = readLocalStorage(tagFolderStorageKey)
+      if (rawTagFolders) {
+        const parsed = JSON.parse(rawTagFolders) as unknown
+        if (parsed && typeof parsed === 'object') {
+          const next: Record<string, string[]> = {}
+          for (const [folder, value] of Object.entries(parsed as Record<string, unknown>)) {
+            if (!Array.isArray(value)) {
+              continue
+            }
+            const normalizedFolder = folder.trim()
+            const normalizedTags = Array.from(
+              new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))
+            )
+            if (normalizedFolder && normalizedTags.length > 0) {
+              next[normalizedFolder] = normalizedTags
+            }
+          }
+          setTagFolderMap(next)
+        } else {
+          setTagFolderMap({})
+        }
+      } else {
+        setTagFolderMap({})
+      }
+    } catch {
+      setTagFolderMap({})
+    }
+    setHydratedStorageKey(profileId)
+  }, [folderCollapseStorageKey, folderStorageKey, projectsCollapsedStorageKey, tagFolderStorageKey])
+
+  useEffect(() => {
+    if (hydratedStorageKey !== profileId) {
+      return
+    }
+    writeLocalStorage(folderStorageKey, JSON.stringify(customFolders))
+  }, [customFolders, folderStorageKey, hydratedStorageKey, profileId])
+
+  useEffect(() => {
+    if (hydratedStorageKey !== profileId) {
+      return
+    }
+    writeLocalStorage(folderCollapseStorageKey, JSON.stringify(collapsedFolders))
+  }, [collapsedFolders, folderCollapseStorageKey, hydratedStorageKey, profileId])
+
+  useEffect(() => {
+    if (hydratedStorageKey !== profileId) {
+      return
+    }
+    writeLocalStorage(projectsCollapsedStorageKey, projectsCollapsed ? '1' : '0')
+  }, [projectsCollapsed, projectsCollapsedStorageKey, hydratedStorageKey, profileId])
+
+  useEffect(() => {
+    if (hydratedStorageKey !== profileId) {
+      return
+    }
+    writeLocalStorage(tagFolderStorageKey, JSON.stringify(tagFolderMap))
+  }, [tagFolderMap, tagFolderStorageKey, hydratedStorageKey, profileId])
 
   const selectedPrompt = useMemo(
     () => prompts.find((item) => item.id === selectedPromptId) ?? null,
@@ -154,8 +333,18 @@ export function NeoApp({
     [prompts]
   )
 
+  const assignedTagNames = useMemo(() => {
+    const assigned = new Set<string>()
+    Object.values(tagFolderMap).forEach((folderTags) => {
+      folderTags.forEach((tag) => assigned.add(tag))
+    })
+    return assigned
+  }, [tagFolderMap])
+
+  const looseTags = useMemo(() => tags.filter((tag) => !assignedTagNames.has(tag.name)), [assignedTagNames, tags])
+
   const lanePrompts = useMemo(() => {
-    const base =
+    let base =
       lane === 'favorites'
         ? prompts.filter((item) => item.favorite)
         : lane === 'recent'
@@ -164,7 +353,15 @@ export function NeoApp({
             ? prompts.filter((item) => qualityScore(item) >= 80)
             : lane === 'drafts'
               ? prompts.filter((item) => qualityScore(item) < 80)
-              : prompts
+              : lane.startsWith('folder:')
+                ? prompts.filter((item) => {
+                    const folderName = lane.slice(7)
+                    const folderTags = tagFolderMap[folderName] ?? []
+                    return item.folder === folderName || item.tags.some((tag) => folderTags.includes(tag))
+                  })
+                : lane === 'all'
+                  ? prompts
+                  : prompts
 
     const bySearch =
       search.trim().length === 0
@@ -178,7 +375,64 @@ export function NeoApp({
       return bySearch.filter((item) => item.tags.includes(activeTag))
     }
     return bySearch
-  }, [activeTag, lane, prompts, search, sortedByRecentUse])
+  }, [activeTag, lane, prompts, search, sortedByRecentUse, tagFolderMap])
+
+  const folders = useMemo(() => {
+    const folderSet = new Set<string>()
+    customFolders.forEach((folder) => folderSet.add(folder))
+    Object.keys(tagFolderMap).forEach((folder) => folderSet.add(folder))
+    prompts.forEach((p) => {
+      if (p.folder?.trim()) {
+        folderSet.add(p.folder.trim())
+      }
+    })
+    return Array.from(folderSet).sort()
+  }, [customFolders, prompts, tagFolderMap])
+
+  const folderGroups = useMemo(
+    () => {
+      const filterNeedle = projectSearch.trim().toLowerCase()
+      const grouped = folders.map((folder) => {
+        const folderTags = (tagFolderMap[folder] ?? []).filter((tagName) => tags.some((tag) => tag.name === tagName))
+        const folderPrompts = prompts
+          .filter((item) => item.folder?.trim() === folder || item.tags.some((tag) => folderTags.includes(tag)))
+          .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+
+        const latestUpdatedAt = folderPrompts[0]?.updatedAt ?? null
+        return {
+          name: folder,
+          tags: folderTags,
+          prompts: folderPrompts,
+          latestUpdatedAt
+        }
+      })
+
+      if (!filterNeedle) {
+        return grouped
+      }
+
+      return grouped.filter((group) => {
+        if (group.name.toLowerCase().includes(filterNeedle)) {
+          return true
+        }
+        if (group.tags.some((tag) => tag.toLowerCase().includes(filterNeedle))) {
+          return true
+        }
+        return group.prompts.some((item) => item.title.toLowerCase().includes(filterNeedle))
+      })
+    },
+    [folders, prompts, projectSearch, tagFolderMap, tags]
+  )
+
+  useEffect(() => {
+    if (!lane.startsWith('folder:')) {
+      return
+    }
+    const activeFolder = lane.slice(7)
+    if (!folders.includes(activeFolder)) {
+      setLane('all')
+    }
+  }, [folders, lane])
 
   useEffect(() => {
     if (lane === 'templates') {
@@ -188,99 +442,442 @@ export function NeoApp({
 
   const readyCount = prompts.filter((item) => qualityScore(item) >= 80).length
   const draftCount = prompts.length - readyCount
+  const totalPromptCount = prompts.length
+  const allFoldersCollapsed = folderGroups.length > 0 && folderGroups.every((group) => collapsedFolders[group.name])
+
+  const contextPrompt = useMemo(
+    () => (promptMenu ? prompts.find((item) => item.id === promptMenu.promptId) ?? null : null),
+    [promptMenu, prompts]
+  )
+
+  useEffect(() => {
+    if (!promptMenu) {
+      return
+    }
+
+    const closeMenu = () => setPromptMenu(null)
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMenu()
+      }
+    }
+
+    window.addEventListener('click', closeMenu)
+    window.addEventListener('contextmenu', closeMenu)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('scroll', closeMenu, true)
+    return () => {
+      window.removeEventListener('click', closeMenu)
+      window.removeEventListener('contextmenu', closeMenu)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('scroll', closeMenu, true)
+    }
+  }, [promptMenu])
+
+  async function movePromptToFolder(promptId: string, folderName: string): Promise<void> {
+    const prompt = prompts.find((item) => item.id === promptId)
+    if (!prompt) {
+      return
+    }
+    await onSavePrompt(prompt, {
+      title: prompt.title,
+      content: prompt.content,
+      category: prompt.category,
+      tags: prompt.tags,
+      folder: folderName,
+      useCase: prompt.useCase,
+      aiTarget: prompt.aiTarget
+    })
+    setLane(`folder:${folderName}`)
+    onSelectPromptId(prompt.id)
+    setFocus('read')
+  }
+
+  function moveTagToFolder(tagName: string, folderName: string): void {
+    const normalizedTag = tagName.trim()
+    const normalizedFolder = folderName.trim()
+    if (!normalizedTag || !normalizedFolder) {
+      return
+    }
+
+    setTagFolderMap((prev) => {
+      const next: Record<string, string[]> = {}
+      const folderNames = Array.from(new Set([...Object.keys(prev), normalizedFolder]))
+      folderNames.forEach((folder) => {
+        const folderTags = (prev[folder] ?? []).filter((tag) => tag !== normalizedTag)
+        if (folder === normalizedFolder && !folderTags.includes(normalizedTag)) {
+          folderTags.push(normalizedTag)
+        }
+        if (folderTags.length > 0) {
+          next[folder] = folderTags
+        }
+      })
+      return next
+    })
+  }
 
   return (
-    <div className="neo-root grid h-full min-h-0 grid-rows-[auto_1fr] gap-3 bg-bg p-3">
-      <header className="neo-panel border border-line/20 bg-surface px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="mono-meta text-xs uppercase tracking-[0.22em] text-muted">AMP</p>
-            <h1 className="editorial-heading truncate text-[2rem] font-semibold leading-tight text-text">All My Prompts</h1>
-            <p className="text-sm text-muted">
-              {profileName}, write, validate, package, and ship reusable prompts from one production workspace.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" className="h-9 px-4" onClick={onOpenShareImport}>
-              <Import size={14} className="mr-2" />
+    <div className="neo-root flex h-full min-h-0 flex-col bg-bg">
+      <header
+        className="flex h-11 shrink-0 items-center justify-between border-b border-line/20 bg-surface px-3"
+        style={{ WebkitAppRegion: 'drag' } as CSSProperties}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <img src={ampLogoUrl} alt="AMP" className="h-6 w-6 object-contain" />
+          <span className="mono-meta text-xs uppercase tracking-[0.16em] text-muted">AMP</span>
+        </div>
+        <div className="ml-auto flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
+          <nav className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
+            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onOpenShareImport}>
+              <Import size={14} className="text-iconMuted" />
               Share / Import
-            </Button>
-            <Button variant="secondary" size="sm" className="h-9 px-4" onClick={onOpenSettings}>
-              <Settings2 size={14} className="mr-2" />
+            </button>
+            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onOpenMarketplace}>
+              <ArrowUpRight size={14} className="text-iconMuted" />
+              Marketplace
+            </button>
+            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onCheckForUpdates}>
+              <ChevronsUpDown size={14} className="text-iconMuted" />
+              Check updates
+            </button>
+            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onOpenSettings}>
+              <Settings2 size={14} className="text-iconMuted" />
               Settings
-            </Button>
-            <Button variant="secondary" size="sm" className="h-9 px-4" onClick={onOpenPlugins}>
-              <Sparkles size={14} className="mr-2" />
-              Plugins
-            </Button>
-            <Button variant="secondary" size="sm" className="h-9 px-4" onClick={onOpenThemes}>
-              <LayoutTemplate size={14} className="mr-2" />
-              Themes
-            </Button>
-            <Button variant="primary" size="sm" className="h-9 px-4" onClick={onCreatePrompt}>
-              <FilePlus2 size={14} className="mr-2" />
-              New Prompt
-            </Button>
+            </button>
+          </nav>
+          <div className="flex items-center">
+          <button
+            type="button"
+            className="grid h-8 w-10 place-items-center text-iconMuted transition-colors hover:bg-surface2 hover:text-text"
+            aria-label="Minimize window"
+            onClick={() => void window.api?.window.minimize()}
+          >
+            <Minus size={15} />
+          </button>
+          <button
+            type="button"
+            className="grid h-8 w-10 place-items-center text-iconMuted transition-colors hover:bg-surface2 hover:text-text"
+            aria-label="Maximize or restore window"
+            onClick={() => void window.api?.window.toggleMaximize()}
+          >
+            <Maximize2 size={14} />
+          </button>
+          <button
+            type="button"
+            className="grid h-8 w-10 place-items-center text-iconMuted transition-colors hover:bg-danger/20 hover:text-danger"
+            aria-label="Close window"
+            onClick={() => void window.api?.window.close()}
+          >
+            <X size={15} />
+          </button>
           </div>
         </div>
       </header>
-
-      <main className="grid min-h-0 gap-3 xl:grid-cols-[220px_minmax(360px,0.95fr)_minmax(620px,1.35fr)]">
-        <aside className="neo-panel scroll-y min-h-0 space-y-3 overflow-y-auto border border-line/20 bg-surface p-3">
-          <div className="space-y-2">
-            <button type="button" className={laneButtonClass(lane === 'all')} onClick={() => setLane('all')}>
-              <FolderOpen size={14} />
-              All prompts ({prompts.length})
-            </button>
-            <button type="button" className={laneButtonClass(lane === 'ready')} onClick={() => setLane('ready')}>
-              <Star size={14} />
-              Ready ({readyCount})
-            </button>
-            <button type="button" className={laneButtonClass(lane === 'drafts')} onClick={() => setLane('drafts')}>
-              <PencilLine size={14} />
-              Drafting ({draftCount})
-            </button>
-            <button type="button" className={laneButtonClass(lane === 'favorites')} onClick={() => setLane('favorites')}>
-              <Heart size={14} />
-              Favorites
-            </button>
-            <button type="button" className={laneButtonClass(lane === 'recent')} onClick={() => setLane('recent')}>
-              <TerminalSquare size={14} />
-              Recently used
-            </button>
-            <button type="button" className={laneButtonClass(lane === 'templates')} onClick={() => setLane('templates')}>
-              <LayoutTemplate size={14} />
-              Templates ({templates.length})
-            </button>
-          </div>
-
-          <div className="border-t border-line/20 pt-3">
-            <p className="mono-meta mb-2 text-[10px] uppercase tracking-[0.2em] text-muted">Tags</p>
+      <main className="grid min-h-0 flex-1 gap-3 p-3 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="neo-panel flex min-h-0 flex-col overflow-hidden border border-line/20 bg-surface">
+          <div className="border-b border-line/20 px-4 py-4">
+            <div className="flex items-center gap-3">
+              <img src={ampLogoUrl} alt="AMP Logo" className="w-12" />
+              
+              <div>
+                <p className="mono-meta text-xs uppercase tracking-[0.22em] text-muted">AMP</p>
+                <h1 className="editorial-heading truncate text-[1.5rem] font-semibold leading-tight text-text">All My Prompts</h1>
+              </div>
+            </div>
             <button
               type="button"
-              className={laneButtonClass(activeTag === null)}
-              onClick={() => onSelectTag(null)}
+              className={`${navRowClass(false)} mt-4 border border-line/20 bg-surface2 font-medium`}
+              onClick={onCreatePrompt}
             >
-              <Filter size={13} />
-              All tags
+              <FilePlus2 size={14} />
+              New Prompt
             </button>
-            <div className="mt-2 space-y-1">
-              {tags.map((tag) => (
-                <button
-                  key={tag.name}
-                  type="button"
-                  className={laneButtonClass(activeTag === tag.name)}
-                  onClick={() => onSelectTag(tag.name)}
-                >
-                  <span>#{tag.name}</span>
-                  <span className="ml-auto text-xs text-muted">{tag.count}</span>
+          </div>
+
+          <div className="scroll-y min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            <div>
+              <p className="mono-meta mb-1 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">Workspace</p>
+              <div className="space-y-0.5">
+                <button type="button" className={navRowClass(lane === 'all')} onClick={() => setLane('all')}>
+                  <FolderOpen size={14} />
+                  <span className="truncate">All prompts</span>
+                  <span className="ml-auto text-xs text-muted">{totalPromptCount}</span>
                 </button>
-              ))}
+                <button type="button" className={navRowClass(lane === 'ready')} onClick={() => setLane('ready')}>
+                  <Star size={14} />
+                  <span className="truncate">Ready</span>
+                  <span className="ml-auto text-xs text-muted">{readyCount}</span>
+                </button>
+                <button type="button" className={navRowClass(lane === 'drafts')} onClick={() => setLane('drafts')}>
+                  <PencilLine size={14} />
+                  <span className="truncate">Drafting</span>
+                  <span className="ml-auto text-xs text-muted">{draftCount}</span>
+                </button>
+                <button type="button" className={navRowClass(lane === 'favorites')} onClick={() => setLane('favorites')}>
+                  <Heart size={14} />
+                  <span className="truncate">Favorites</span>
+                </button>
+                <button type="button" className={navRowClass(lane === 'recent')} onClick={() => setLane('recent')}>
+                  <TerminalSquare size={14} />
+                  <span className="truncate">Recently used</span>
+                </button>
+                <button type="button" className={navRowClass(lane === 'templates')} onClick={() => setLane('templates')}>
+                  <LayoutTemplate size={14} />
+                  <span className="truncate">Templates</span>
+                  <span className="ml-auto text-xs text-muted">{templates.length}</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-line/20 pt-4">
+              <div className="mb-1 flex items-center justify-between gap-2 px-2">
+                <p className="mono-meta text-[10px] uppercase tracking-[0.18em] text-muted">Tags</p>
+                <div className="inline-flex items-center gap-1">
+                    <button
+                      type="button"
+                      className="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-text"
+                      title={projectsCollapsed ? 'Expand tags' : 'Collapse tags'}
+                      onClick={() => setProjectsCollapsed((prev) => !prev)}
+                    >
+                      <ChevronsUpDown size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className={`grid h-6 w-6 place-items-center rounded-md transition-colors ${
+                        showProjectFilter ? 'bg-surface2 text-text' : 'text-muted hover:bg-surface2 hover:text-text'
+                      }`}
+                      title="Filter tag folders"
+                      onClick={() => {
+                        setShowProjectFilter((prev) => !prev)
+                        if (showProjectFilter) {
+                          setProjectSearch('')
+                        }
+                      }}
+                    >
+                      <Filter size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-text"
+                      title="Create tag folder"
+                      onClick={() => {
+                        setIsCreatingFolder(true)
+                        setProjectsCollapsed(false)
+                      }}
+                    >
+                      <FolderPlus size={13} />
+                    </button>
+                  </div>
+                </div>
+                {showProjectFilter && (
+                  <div className="mb-2 px-2">
+                    <div className="flex items-center gap-2 rounded-md border border-line/20 bg-surface2 px-2">
+                      <Filter size={12} className="text-muted" />
+                      <input
+                        value={projectSearch}
+                        onChange={(event) => setProjectSearch(event.target.value)}
+                        placeholder="Filter tags..."
+                        className="h-8 w-full border-none bg-transparent text-xs outline-none"
+                      />
+                      {projectSearch.trim().length > 0 && (
+                        <button
+                          type="button"
+                          className="grid h-5 w-5 place-items-center rounded text-muted transition-colors hover:bg-surface hover:text-text"
+                          onClick={() => setProjectSearch('')}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {isCreatingFolder && (
+                  <div className="mb-2 space-y-2 px-2">
+                    <input
+                      value={newFolderName}
+                      onChange={(event) => setNewFolderName(event.target.value)}
+                      placeholder="Tag folder name"
+                      className="h-8 w-full rounded-md border border-line/20 bg-surface2 px-2 text-xs outline-none focus:border-accent/30"
+                      autoFocus
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          const normalized = newFolderName.trim()
+                          if (!normalized) return
+                          if (!folders.includes(normalized)) {
+                            setCustomFolders((prev) => [...prev, normalized].sort((a, b) => a.localeCompare(b)))
+                          }
+                          setLane(`folder:${normalized}`)
+                          setIsCreatingFolder(false)
+                          setNewFolderName('')
+                        }
+                        if (event.key === 'Escape') {
+                          setIsCreatingFolder(false)
+                          setNewFolderName('')
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="h-7 rounded-md border border-line/20 bg-surface2 px-2 text-xs font-medium text-text transition-colors hover:border-accent/30"
+                        onClick={() => {
+                          const normalized = newFolderName.trim()
+                          if (!normalized) return
+                          if (!folders.includes(normalized)) {
+                            setCustomFolders((prev) => [...prev, normalized].sort((a, b) => a.localeCompare(b)))
+                          }
+                          setLane(`folder:${normalized}`)
+                          setIsCreatingFolder(false)
+                          setNewFolderName('')
+                        }}
+                      >
+                        Create
+                      </button>
+                      <button
+                        type="button"
+                        className="h-7 rounded-md px-2 text-xs text-muted transition-colors hover:bg-surface2 hover:text-text"
+                        onClick={() => {
+                          setIsCreatingFolder(false)
+                          setNewFolderName('')
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {folderGroups.length === 0 && !isCreatingFolder && (
+                    <p className="px-2 py-1 text-[11px] text-muted">No tag folders yet. Click the + icon to create one.</p>
+                  )}
+                  {folderGroups.map((group) => (
+                    <div
+                      key={group.name}
+                      onDragEnter={(event) => {
+                        event.preventDefault()
+                      }}
+                      onDragOver={(event) => {
+                        event.preventDefault()
+                        event.dataTransfer.dropEffect = 'copy'
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault()
+                        const dropTag = event.dataTransfer.getData('text/ampnotes-tag')
+                        if (dropTag) {
+                          moveTagToFolder(dropTag, group.name)
+                          setCollapsedFolders((prev) => ({ ...prev, [group.name]: false }))
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-text"
+                          title={collapsedFolders[group.name] || projectsCollapsed ? 'Expand folder' : 'Collapse folder'}
+                          onClick={() =>
+                            setCollapsedFolders((prev) => ({
+                              ...prev,
+                              [group.name]: !(prev[group.name] ?? false)
+                            }))
+                          }
+                        >
+                          <ChevronRight
+                            size={12}
+                            className={collapsedFolders[group.name] || projectsCollapsed ? '' : 'rotate-90'}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          className={navRowClass(lane === `folder:${group.name}`)}
+                          onClick={() => setLane(`folder:${group.name}`)}
+                          onDragEnter={(event) => {
+                            event.preventDefault()
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault()
+                            event.dataTransfer.dropEffect = 'copy'
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault()
+                            const dropTag = event.dataTransfer.getData('text/ampnotes-tag')
+                            if (dropTag) {
+                              moveTagToFolder(dropTag, group.name)
+                              setCollapsedFolders((prev) => ({ ...prev, [group.name]: false }))
+                              return
+                            }
+                            const dropPromptId = event.dataTransfer.getData('text/ampnotes-prompt-id') || draggedPromptId
+                            if (!dropPromptId) {
+                              return
+                            }
+                            void movePromptToFolder(dropPromptId, group.name)
+                            setDraggedPromptId(null)
+                          }}
+                        >
+                          <Folder size={14} />
+                          <span className="truncate">{group.name}</span>
+                          <span className="ml-auto text-xs text-muted">
+                            {group.tags.length}
+                          </span>
+                        </button>
+                      </div>
+                      {!projectsCollapsed && !collapsedFolders[group.name] && (
+                        <div className="mt-0.5 space-y-0.5 pl-7">
+                          {group.tags.length === 0 ? (
+                            <p className="px-2 py-1 text-[11px] text-muted">No tags yet</p>
+                          ) : (
+                            group.tags.map((tagName) => {
+                              const tag = tags.find((item) => item.name === tagName)
+                              return (
+                              <button
+                                key={`${group.name}-${tagName}`}
+                                type="button"
+                                className={navSubRowClass(activeTag === tagName)}
+                                draggable
+                                onDragStart={(event) => {
+                                  event.dataTransfer.effectAllowed = 'copy'
+                                  event.dataTransfer.setData('text/ampnotes-tag', tagName)
+                                }}
+                                onClick={() => {
+                                  setLane(`folder:${group.name}`)
+                                  onSelectTag(tagName)
+                                }}
+                              >
+                                <span className="truncate">#{tagName}</span>
+                                <span className="ml-auto text-[11px] text-muted">{tag?.count ?? 0}</span>
+                              </button>
+                              )
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 space-y-0.5">
+                {looseTags.map((tag) => (
+                  <button
+                    key={tag.name}
+                    type="button"
+                    className={navRowClass(activeTag === tag.name)}
+                    onClick={() => onSelectTag(tag.name)}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'copy'
+                      event.dataTransfer.setData('text/ampnotes-tag', tag.name)
+                    }}
+                  >
+                    <span className="truncate">#{tag.name}</span>
+                    <span className="ml-auto text-xs text-muted">{tag.count}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
+
         </aside>
 
-        <section className="neo-panel flex min-h-0 flex-col border border-line/20 bg-surface">
+        <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(360px,0.95fr)_minmax(620px,1.35fr)]">
+          <section className="neo-panel flex min-h-0 flex-col border border-line/20 bg-surface">
           <div className="border-b border-line/20 px-3 py-2">
             <div className="flex items-center gap-2 rounded-md border border-line/20 bg-surface2 px-2">
               <Search size={14} className="text-muted" />
@@ -327,9 +924,27 @@ export function NeoApp({
                       className={`cursor-pointer border p-3 transition-colors ${
                         selected ? 'border-accent/35 bg-accent/10' : 'border-line/20 bg-surface2 hover:border-accent/20'
                       }`}
+                      draggable
                       onClick={() => {
                         onSelectPromptId(prompt.id)
                         setFocus('read')
+                      }}
+                      onContextMenu={(event) => {
+                        event.preventDefault()
+                        onSelectPromptId(prompt.id)
+                        setPromptMenu({
+                          promptId: prompt.id,
+                          x: event.clientX,
+                          y: event.clientY
+                        })
+                      }}
+                      onDragStart={(event) => {
+                        setDraggedPromptId(prompt.id)
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('text/ampnotes-prompt-id', prompt.id)
+                      }}
+                      onDragEnd={() => {
+                        setDraggedPromptId(null)
                       }}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -349,7 +964,15 @@ export function NeoApp({
                       <p className="mt-2 text-xs text-text">{excerpt(prompt.content, 170)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {visibleTags.map((tag) => (
-                          <span key={`${prompt.id}-${tag}`} className="rounded-md border border-line/20 bg-surface px-1.5 py-0.5 text-[11px] text-muted">
+                          <span
+                            key={`${prompt.id}-${tag}`}
+                            draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = 'copy'
+                              event.dataTransfer.setData('text/ampnotes-tag', tag)
+                            }}
+                            className="rounded-md border border-line/20 bg-surface px-1.5 py-0.5 text-[11px] text-muted"
+                          >
                             #{tag}
                           </span>
                         ))}
@@ -366,55 +989,152 @@ export function NeoApp({
               </div>
             )}
           </div>
-        </section>
 
-        <section className="neo-panel min-h-0 border border-line/20 bg-surface">
-          {selectedPrompt ? (
-            <NeoFocusPanel
-              prompt={selectedPrompt}
-              focus={focus}
-              setFocus={setFocus}
-              isValidating={validatingPromptId === selectedPrompt.id}
-              onCopyPrompt={onCopyPrompt}
-              onSavePrompt={onSavePrompt}
-              onDeletePrompt={onDeletePrompt}
-              onRefinePrompt={onRefinePrompt}
-              onValidatePrompt={onValidatePrompt}
-              onSharePrompt={onSharePrompt}
-              onAddAsTemplate={onAddAsTemplate}
-            />
-          ) : (
-            <div className="grid h-full place-items-center p-6 text-center">
-              <div>
-                <h3 className="editorial-heading text-3xl font-semibold">Select a prompt</h3>
-                <p className="mt-2 max-w-sm text-sm text-muted">
-                  Open any prompt from the center lane to read, edit, validate, and publish from one focus panel.
-                </p>
+          </section>
+
+          <section className="neo-panel min-h-0 border border-line/20 bg-surface">
+            {selectedPrompt ? (
+              <NeoFocusPanel
+                prompt={selectedPrompt}
+                focus={focus}
+                setFocus={setFocus}
+                folders={folders}
+                isValidating={validatingPromptId === selectedPrompt.id}
+                onCopyPrompt={onCopyPrompt}
+                onSavePrompt={onSavePrompt}
+                onDeletePrompt={onDeletePrompt}
+                onRefinePrompt={onRefinePrompt}
+                onValidatePrompt={onValidatePrompt}
+                onSharePrompt={onSharePrompt}
+                onAddAsTemplate={onAddAsTemplate}
+              />
+            ) : (
+              <div className="grid h-full place-items-center p-6 text-center">
+                <div>
+                  <h3 className="editorial-heading text-3xl font-semibold">Select a prompt</h3>
+                  <p className="mt-2 max-w-sm text-sm text-muted">
+                    Open any prompt from the center lane to read, edit, validate, and publish from one focus panel.
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        </div>
       </main>
-
-      <footer className="neo-panel border border-line/20 bg-surface px-4 py-2">
-        <div className="grid items-center gap-2 text-sm text-muted sm:grid-cols-[1fr_auto_1fr]">
-          <span className="hidden sm:block" />
-          <p className="text-center">© {new Date().getFullYear()} AMP</p>
-          <div className="flex items-center justify-center gap-3 sm:justify-self-end">
-            <button type="button" className="font-medium hover:text-text" onClick={onOpenMarketplace}>
-              Marketplace
-            </button>
-            <span aria-hidden className="text-border">|</span>
-            <button type="button" className="font-medium hover:text-text" onClick={onOpenAbout}>
-              About
-            </button>
-            <span aria-hidden className="text-border">|</span>
-            <button type="button" className="font-medium hover:text-text" onClick={onOpenTos}>
-              ToS
-            </button>
-          </div>
+      <footer className="flex h-8 shrink-0 items-center bg-surface px-4 text-xs text-muted">
+        <span>© 2026 AMP</span>
+        <div className="ml-auto flex items-center gap-3">
+          <button type="button" className="transition-colors hover:text-text" onClick={onOpenAbout}>
+            About
+          </button>
+          <button type="button" className="transition-colors hover:text-text" onClick={onOpenTos}>
+            ToS
+          </button>
+          <span className="mono-meta">v{appVersion}</span>
         </div>
       </footer>
+
+      {promptMenu && contextPrompt && (
+        <div
+          className="fixed z-[120] min-w-[220px] border border-line/30 bg-surface p-1 shadow-2xl"
+          style={{ left: promptMenu.x, top: promptMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              onSelectPromptId(contextPrompt.id)
+              setFocus('read')
+              setPromptMenu(null)
+            }}
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              onSelectPromptId(contextPrompt.id)
+              setFocus('edit')
+              setPromptMenu(null)
+            }}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              void onCopyPrompt(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            Copy
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              onRefinePrompt(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            Improve
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              void onValidatePrompt(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            Validate Prompt
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              onSharePrompt(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            Share / Export
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              void onAddAsTemplate(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            Add as Template
+          </button>
+
+          <div className="my-1 border-t border-line/20" />
+          <p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">Add To Tag Folder</p>
+          {folders.length === 0 ? (
+            <p className="px-2 py-1 text-[11px] text-muted">No folders yet</p>
+          ) : (
+            folders.map((folder) => (
+              <button
+                key={`menu-folder-${folder}`}
+                type="button"
+                className={navSubRowClass(contextPrompt.folder === folder)}
+                onClick={() => {
+                  void movePromptToFolder(contextPrompt.id, folder)
+                  setPromptMenu(null)
+                }}
+              >
+                {folder}
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -423,6 +1143,7 @@ interface NeoFocusPanelProps {
   prompt: PromptDTO
   focus: NeoFocus
   setFocus: (mode: NeoFocus) => void
+  folders: string[]
   isValidating: boolean
   onCopyPrompt: (prompt: PromptDTO) => Promise<void>
   onSavePrompt: (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => Promise<void>
@@ -437,6 +1158,7 @@ function NeoFocusPanel({
   prompt,
   focus,
   setFocus,
+  folders,
   isValidating,
   onCopyPrompt,
   onSavePrompt,
@@ -452,6 +1174,7 @@ function NeoFocusPanel({
     content: '',
     category: '',
     tags: [],
+    folder: '',
     useCase: '',
     aiTarget: ''
   })
@@ -462,6 +1185,7 @@ function NeoFocusPanel({
       content: prompt.content,
       category: prompt.category,
       tags: prompt.tags,
+      folder: prompt.folder ?? '',
       useCase: prompt.useCase ?? '',
       aiTarget: prompt.aiTarget ?? ''
     })
@@ -560,7 +1284,10 @@ function NeoFocusPanel({
 
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">Category</span>
+                <span className="mb-1 block font-medium">
+                  Category
+                  <HelpTooltip text="Type of prompt: Writer, Coding, Analysis, Productivity, etc." />
+                </span>
                 <input
                   className="h-10 w-full border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/25"
                   value={form.category}
@@ -568,7 +1295,10 @@ function NeoFocusPanel({
                 />
               </label>
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">Tags (comma separated)</span>
+                <span className="mb-1 block font-medium">
+                  Tags
+                  <HelpTooltip text="Labels to organize and find your prompt later. Comma separated." />
+                </span>
                 <input
                   className="h-10 w-full border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/25"
                   value={form.tags.join(', ')}
@@ -587,15 +1317,42 @@ function NeoFocusPanel({
 
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">Use case</span>
+                <span className="mb-1 block font-medium">
+                  Folder
+                  <HelpTooltip text="Organize prompts into folders. Create new folders from the sidebar." />
+                </span>
+                <input
+                  className="h-10 w-full border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/25"
+                  value={form.folder}
+                  onChange={(event) => setForm((prev) => ({ ...prev, folder: event.target.value }))}
+                  placeholder="e.g. Work, Personal, Project X"
+                  list="folder-suggestions"
+                />
+                <datalist id="folder-suggestions">
+                  {folders.map((f) => (
+                    <option key={f} value={f} />
+                  ))}
+                </datalist>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium">
+                  Use case
+                  <HelpTooltip text="What is this prompt used for? Example: Writing weekly reports, debugging code, summarizing meetings." />
+                </span>
                 <input
                   className="h-10 w-full border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/25"
                   value={form.useCase}
                   onChange={(event) => setForm((prev) => ({ ...prev, useCase: event.target.value }))}
                 />
               </label>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
-                <span className="mb-1 block font-medium">AI target</span>
+                <span className="mb-1 block font-medium">
+                  AI target
+                  <HelpTooltip text="Which AI model is this prompt designed for? Example: ChatGPT, Claude, Gemini, Grok." />
+                </span>
                 <input
                   className="h-10 w-full border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/25"
                   value={form.aiTarget}
@@ -605,7 +1362,10 @@ function NeoFocusPanel({
             </div>
 
             <label className="block text-sm">
-              <span className="mb-1 block font-medium">Prompt content (Markdown)</span>
+              <span className="mb-1 block font-medium">
+                Prompt content (Markdown)
+                <HelpTooltip text="The actual prompt text. Include instructions, format guidance, constraints, and examples to get the best output." />
+              </span>
               <textarea
                 className="min-h-[320px] w-full border border-line/20 bg-surface2 px-3 py-3 leading-7 outline-none focus:border-accent/25"
                 value={form.content}
@@ -634,6 +1394,7 @@ function NeoFocusPanel({
                 content: form.content,
                 category: form.category.trim() || 'General',
                 tags: form.tags,
+                folder: form.folder.trim() || undefined,
                 useCase: form.useCase.trim() || undefined,
                 aiTarget: form.aiTarget.trim() || undefined
               })

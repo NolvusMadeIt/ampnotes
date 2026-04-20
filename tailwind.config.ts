@@ -13,6 +13,8 @@ export default {
         muted: 'rgb(from var(--text-muted) r g b / <alpha-value>)',
         border: 'rgb(from var(--border) r g b / <alpha-value>)',
         line: 'rgb(from var(--border) r g b / <alpha-value>)',
+        icon: 'rgb(from var(--icon) r g b / <alpha-value>)',
+        iconMuted: 'rgb(from var(--icon-muted) r g b / <alpha-value>)',
         accent: 'rgb(from var(--accent) r g b / <alpha-value>)',
         accentContrast: 'rgb(from var(--accent-contrast) r g b / <alpha-value>)',
         success: 'rgb(from var(--success) r g b / <alpha-value>)',

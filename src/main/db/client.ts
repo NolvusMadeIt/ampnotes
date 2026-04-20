@@ -1,13 +1,18 @@
-import { mkdirSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
-import Database from 'better-sqlite3'
+import type BetterSqlite3 from 'better-sqlite3'
 import { app } from 'electron'
 import { APP_DB_NAME, MIGRATION_TABLE, TEMPLATE_SEED_VERSION } from './schema'
+import { SQL_MIGRATIONS } from './migrations'
 import { seedSystemTemplates } from './repos/templateRepo'
 
-export type SqliteDatabase = Database.Database
+export type SqliteDatabase = BetterSqlite3.Database
+type BetterSqliteCtor = new (path: string) => SqliteDatabase
 
 let dbInstance: SqliteDatabase | null = null
+let BetterSqlite: BetterSqliteCtor | null = null
+const require = createRequire(import.meta.url)
 
 function getDataDirectory(): string {
   if (process.env.AMP_DB_PATH) {
@@ -41,20 +46,40 @@ function runMigrations(db: SqliteDatabase): void {
   const appliedStmt = db.prepare(`SELECT id FROM ${MIGRATION_TABLE} WHERE id = ?`)
   const insertStmt = db.prepare(`INSERT INTO ${MIGRATION_TABLE} (id, applied_at) VALUES (?, ?)`)
 
-  const migrationsDir = resolve(process.cwd(), 'src/main/db/migrations')
-  const files = readdirSync(migrationsDir)
-    .filter((file) => file.endsWith('.sql'))
-    .sort((a, b) => a.localeCompare(b))
-
-  for (const file of files) {
-    const alreadyApplied = appliedStmt.get(file)
+  for (const migration of SQL_MIGRATIONS) {
+    const alreadyApplied = appliedStmt.get(migration.id)
     if (alreadyApplied) {
       continue
     }
 
-    const sql = readFileSync(join(migrationsDir, file), 'utf8')
-    db.exec(sql)
-    insertStmt.run(file, new Date().toISOString())
+    db.exec(migration.sql)
+    insertStmt.run(migration.id, new Date().toISOString())
+  }
+}
+
+function resolveBetterSqlite(): BetterSqliteCtor {
+  if (BetterSqlite) {
+    return BetterSqlite
+  }
+
+  try {
+    const loaded = require('better-sqlite3') as unknown
+    const ctor =
+      typeof loaded === 'function'
+        ? (loaded as BetterSqliteCtor)
+        : ((loaded as { default?: unknown }).default as BetterSqliteCtor | undefined)
+
+    if (!ctor) {
+      throw new Error('Native module did not export a database constructor.')
+    }
+
+    BetterSqlite = ctor
+    return ctor
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Failed to load better-sqlite3 native binding. Run "npm run rebuild:native" (dev) or rebuild the installer package. ${reason}`
+    )
   }
 }
 
@@ -90,7 +115,8 @@ export function getDb(): SqliteDatabase {
   const dir = dirname(dbPath)
   mkdirSync(dir, { recursive: true })
 
-  const db = new Database(dbPath)
+  const DatabaseCtor = resolveBetterSqlite()
+  const db = new DatabaseCtor(dbPath)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
 

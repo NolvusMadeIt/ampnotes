@@ -4,11 +4,12 @@ AMP treats themes and plugins as first-class, file-based assets.
 
 ## Plugin Workflow
 
-### Create or Edit
+### Create Or Edit
 
-- Use the Plugin Manifest editor in Settings.
-- Save manifest JSON to register or update.
-- Edit existing plugins from the Installed list.
+- Open Settings, then the Plugins tab.
+- Paste or edit plugin manifest JSON.
+- Save to register or update the plugin.
+- Use **Open Folder** to edit package files directly when needed.
 
 ### Import Options
 
@@ -27,7 +28,10 @@ AMP treats themes and plugins as first-class, file-based assets.
 
 - Permissions are allow-listed.
 - Entry paths are sanitized.
-- HTTPS homepage enforced when provided.
+- Homepages must use HTTPS when provided.
+- Optional `credits` and `socials` metadata can be stored in plugin manifests for attribution.
+- Imported plugin code should remain sandboxed and reviewable.
+- Import payloads are scanned for suspicious markers before AMP accepts them.
 
 ## Theme Workflow
 
@@ -35,30 +39,39 @@ AMP treats themes and plugins as first-class, file-based assets.
 
 The Theme Builder supports:
 
-- Foundation tokens (`--bg`, `--surface`, `--text`, `--border`, etc.)
-- Interactive tokens (`--input`, `--ring`, `--popover`, `--accent`)
-- Status tokens (`--success`, `--warning`, `--danger`)
-- Chart tokens (`--chart-1` through `--chart-5`)
-- Sidebar token set
-- Typography dropdowns for sans/serif/mono families
-- Radius and shadow controls
+- Foundation tokens (`--bg`, `--surface`, `--text`, `--border`, etc.).
+- Interactive tokens (`--input`, `--ring`, `--popover`, `--accent`).
+- Status tokens (`--success`, `--warning`, `--danger`).
+- Chart tokens (`--chart-1` through `--chart-5`).
+- Sidebar token set.
+- Icon color tokens.
+- Typography dropdowns for sans, serif, and mono families.
+- Radius and shadow controls.
 
-Each color token is tied to a visible preview card so users can see where the token appears.
+Each color token is tied to visible preview cards so users can see where the token appears before saving.
 
 ### Manifest Sync
 
 - Build visually, then sync builder values into JSON manifest.
 - Load an existing manifest back into the builder for edits.
+- Custom/imported themes appear in Settings > General > Reading & Typography > Theme preset.
+- AMP honors custom theme font tokens when a marketplace theme is active.
+- Optional `credits` and `socials` metadata can be included in theme manifests for attribution.
 
 ### Import/Export Options
 
-- Paste JSON
-- Marketplace URL import
-- Local JSON file import
-- Local folder import (`manifest.json`)
-- File export
-- Open theme folder
+- Paste JSON.
+- Marketplace URL import.
+- Local JSON file import.
+- Local folder import (`manifest.json`).
+- File export.
+- Open theme folder.
 
 ## Marketplace Prototype
 
-The repo includes a static marketplace prototype at `docs/index.html` where users can stage and export plugin/theme listings with title, description, image, and manifest.
+The repo includes marketplace work in both `docs/` and `marketplace/`. The desktop app can install marketplace packages through deep links or local folder imports.
+
+## Related Visuals
+
+![Templates (Dark)](./images/templates-dark.png)
+![Page Editor (Light)](./images/editor-light.png)

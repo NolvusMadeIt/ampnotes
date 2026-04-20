@@ -2,6 +2,27 @@
 
 This checklist tracks the current polish phase request.
 
+## Current Mandatory Release Gate (From User)
+
+- [x] Add top navbar to all major full pages (including settings, legal, marketplace view).
+- [x] Add new `Admin` tab in Settings with account security profile.
+- [x] Support admin security credentials:
+- [x] Username + password/pin flow for admin-sensitive actions.
+- [x] Device PIN option labeled for Windows device use.
+- [x] Avatar preference in Admin tab.
+- [x] Include creator credits in exports/imports:
+- [x] Prompt share/export bundles include creator name + socials.
+- [x] Theme/plugin manifests include creator name + socials.
+- [x] Import surfaces display and preserve creator credits.
+- [x] Security hardening for import/export pipeline:
+- [x] Add threat scan before import.
+- [x] Block manifest/payload patterns that can compromise user systems.
+- [x] Keep allowlist validation and safe path checks strict.
+- [x] Update check flow must detect new version and allow direct download from repo/app.
+- [x] Bump app version for this release.
+- [ ] Build executable only after all above are complete.
+- [ ] Commit and upload after verification.
+
 ## Core App Cleanup
 
 - [x] Remove classic app runtime and make Neo workspace the only main app path.
@@ -43,3 +64,75 @@ This checklist tracks the current polish phase request.
 - [x] Keep window size/position persistence enabled.
 - [x] Run typecheck/build verification pass after changes.
 - [ ] Run full production release checklist for monetization phase (next phase).
+
+## Marketplace V2 TODO (TailAwesome-Style)
+
+This phase remakes the marketplace so AMP themes/plugins can be discovered, sold, imported, and managed cleanly.
+
+### Product + Experience
+
+- [x] Redesign marketplace UI to a modern catalog layout inspired by `tailawesome.com` (not a clone).
+- [x] Define clear listing cards for `Theme` and `Plugin` with free/paid badges.
+- [x] Add richer listing detail pages with screenshots, compatibility, changelog, and install steps.
+- [ ] Add curated sections: New, Trending, Staff Picks, Free, Paid.
+- [x] Add search, filters, and sort controls that work fast on large catalogs.
+- [x] Ensure the site theme visually matches AMP default desktop theme.
+
+### Catalog Data Model
+
+- [x] Define listing schema for free/paid products (id, slug, type, version, compatibility, price, author, assets).
+- [ ] Add manifest validation pipeline for uploaded plugin/theme packages.
+- [ ] Add versioning policy for updates and rollback metadata.
+- [ ] Add product status workflow: draft, review, published, archived.
+
+### Gumroad Integration
+
+- [x] Map paid listings to Gumroad products (`nolvusmadeit.gumroad.com`).
+- [x] Add Gumroad buy widgets/buttons on paid listing pages.
+- [ ] Add verification flow for paid access tokens/licenses before download/import.
+- [ ] Add fallback purchase link behavior if widget fails.
+- [ ] Add sales analytics capture hooks for internal dashboard metrics.
+
+### AMP App Integration
+
+- [x] Build marketplace API endpoints for listing fetch + manifest fetch.
+- [ ] Add in-app marketplace browser screen (or modal) that reads site catalog.
+- [ ] Add one-click install from marketplace URL into AMP plugin/theme manager.
+- [ ] Add install safety checks in app before apply (permissions, schema, signatures when available).
+- [ ] Add compatibility messaging when manifest target version differs from local AMP version.
+
+### Admin Panel (`/admin`)
+
+- [x] Create private admin control panel route at `/admin`.
+- [x] Do not expose a visible login link in public navigation.
+- [ ] Add strong auth for `/admin` (session + MFA-ready design + brute-force rate limit).
+- [ ] Add content moderation tools for listings, reports, and takedowns.
+- [ ] Add product CRUD tools for title, description, media, pricing, and release status.
+- [ ] Add upload management for screenshots and package artifacts.
+- [ ] Add audit log for sensitive admin actions.
+
+### Security + Repo/Docs Strategy
+
+- [ ] Implement security headers, CSRF, rate limits, and upload scanning baseline.
+- [ ] Add package signature/checksum verification path for imported manifests.
+- [ ] Add abuse/report flow for malicious plugins/themes.
+- [ ] Add hardened input validation for all marketplace forms and imports.
+- [x] Decide docs protection strategy:
+- [x] Document hard constraint: if this repo stays public, `/docs` source cannot be hidden in the same repo.
+- [ ] Option A: move sensitive docs source to private repo and publish only compiled public docs output.
+- [ ] Option B: keep internal docs outside git and deploy only generated site artifacts.
+
+### Monetization Readiness
+
+- [ ] Add payout and fee model spec (platform fee, creator payout cadence, refunds).
+- [ ] Add legal pages specific to marketplace seller/buyer terms.
+- [ ] Add trust badges and review/rating system plan.
+- [ ] Add launch checklist for alpha creators and early paid listings.
+
+### Delivery Plan
+
+- [ ] Phase 1: Information architecture + design system + schema.
+- [ ] Phase 2: Public catalog + listing pages + filters/search.
+- [ ] Phase 3: Gumroad paid flow + license verification + in-app install.
+- [ ] Phase 4: Admin panel + moderation + analytics.
+- [ ] Phase 5: Security hardening + production QA + launch.

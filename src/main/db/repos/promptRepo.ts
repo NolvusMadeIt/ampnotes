@@ -16,6 +16,7 @@ interface PromptRow {
   title: string
   content: string
   category: string
+  folder: string | null
   use_case: string | null
   ai_target: string | null
   refined_version: string | null
@@ -103,6 +104,7 @@ function toPromptDTO(row: PromptRow): PromptDTO {
     content: row.content,
     category: row.category,
     tags: row.tags_csv ? row.tags_csv.split('||') : [],
+    folder: row.folder ?? undefined,
     favorite: row.favorite === 1,
     pinned: row.pinned === 1,
     createdAt: row.created_at,
@@ -271,9 +273,9 @@ export class PromptRepo {
     this.db
       .prepare(
         `INSERT INTO prompts
-          (id, profile_id, title, content, category, use_case, ai_target, refined_version, favorite, pinned, created_at, updated_at, last_used_at, use_count, display_order, validated_at, validation_provider, validation_model, validation_notes)
+          (id, profile_id, title, content, category, folder, use_case, ai_target, refined_version, favorite, pinned, created_at, updated_at, last_used_at, use_count, display_order, validated_at, validation_provider, validation_model, validation_notes)
          VALUES
-          (@id, @profileId, @title, @content, @category, @useCase, @aiTarget, NULL, @favorite, @pinned, @now, @now, NULL, 0, @displayOrder, NULL, NULL, NULL, NULL)`
+          (@id, @profileId, @title, @content, @category, @folder, @useCase, @aiTarget, NULL, @favorite, @pinned, @now, @now, NULL, 0, @displayOrder, NULL, NULL, NULL, NULL)`
       )
       .run({
         id,
@@ -281,6 +283,7 @@ export class PromptRepo {
         title: input.title.trim(),
         content: input.content,
         category: input.category?.trim() || 'General',
+        folder: input.folder?.trim() || null,
         useCase: input.useCase?.trim() || null,
         aiTarget: input.aiTarget?.trim() || null,
         favorite: input.favorite ? 1 : 0,
@@ -320,6 +323,7 @@ export class PromptRepo {
           title = @title,
           content = @content,
           category = @category,
+          folder = @folder,
           use_case = @useCase,
           ai_target = @aiTarget,
           validated_at = NULL,
@@ -337,6 +341,7 @@ export class PromptRepo {
         title: input.title.trim(),
         content: input.content,
         category: input.category?.trim() || 'General',
+        folder: input.folder?.trim() || null,
         useCase: input.useCase?.trim() || null,
         aiTarget: input.aiTarget?.trim() || null,
         favorite: input.favorite ? 1 : 0,

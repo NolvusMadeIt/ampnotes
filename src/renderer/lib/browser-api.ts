@@ -1,5 +1,7 @@
 import type { ApiClient } from '@preload/api-types'
 import type {
+  AdminProfileDTO,
+  AdminProfileInput,
   CreatePluginManifestInput,
   CreateTemplateInput,
   CreateThemeManifestInput,
@@ -46,13 +48,66 @@ interface BrowserDb {
     themes: InstalledThemeDTO[]
     activeThemeId: string | null
   }
+  adminProfiles: Record<string, AdminProfileDTO>
+  adminPins: Record<string, string>
 }
 
 const STORAGE_KEY = 'ampnotes.browser.db.v1'
+const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
   themePreset: 'midnight'
+}
+
+const DEFAULT_ADMIN_PROFILE: AdminProfileDTO = {
+  displayName: 'AMP User',
+  socials: {},
+  security: {
+    hasAdminPin: false,
+    windowsDevicePinHintEnabled: false
+  }
+}
+
+function normalizeAdminProfile(value: unknown, fallbackName = 'AMP User'): AdminProfileDTO {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_ADMIN_PROFILE, displayName: fallbackName }
+  }
+  const record = value as Record<string, unknown>
+  const socialsRaw = (record.socials && typeof record.socials === 'object' ? record.socials : {}) as Record<
+    string,
+    unknown
+  >
+  const normalizeUrl = (input: unknown) =>
+    typeof input === 'string' && input.trim().startsWith('https://') ? input.trim().slice(0, 200) : undefined
+  return {
+    displayName:
+      typeof record.displayName === 'string' && record.displayName.trim()
+        ? record.displayName.trim().slice(0, 80)
+        : fallbackName,
+    avatarUrl: normalizeUrl(record.avatarUrl),
+    socials: {
+      github: normalizeUrl(socialsRaw.github),
+      x: normalizeUrl(socialsRaw.x),
+      website: normalizeUrl(socialsRaw.website)
+    },
+    security: {
+      hasAdminPin: Boolean((record.security as { hasAdminPin?: unknown } | undefined)?.hasAdminPin),
+      windowsDevicePinHintEnabled: Boolean(
+        (record.security as { windowsDevicePinHintEnabled?: unknown } | undefined)?.windowsDevicePinHintEnabled
+      )
+    }
+  }
+}
+
+function hashBrowserPin(pin: string): string {
+  const value = pin.trim()
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index)
+    hash |= 0
+  }
+  return `pin_${Math.abs(hash)}`
 }
 
 function normalizeFontFamily(value: unknown): FontFamilyOption {
@@ -95,6 +150,14 @@ function normalizeAppearance(value: unknown): AppearanceSettingsDTO {
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function isSessionExpired(session: SessionDTO): boolean {
+  const signedInAtMs = Date.parse(session.signedInAt)
+  if (!Number.isFinite(signedInAtMs)) {
+    return true
+  }
+  return Date.now() - signedInAtMs > SESSION_TTL_MS
 }
 
 function createId(prefix: string) {
@@ -163,6 +226,8 @@ function normalizePluginManifest(input: CreatePluginManifestInput): CreatePlugin
     author: input.author?.trim() || undefined,
     entry: safeEntry,
     homepage: input.homepage?.trim().startsWith('https://') ? input.homepage.trim() : undefined,
+    socials: input.socials,
+    credits: input.credits,
     permissions: safePermissions
   }
 }
@@ -200,6 +265,8 @@ function normalizeThemeManifest(input: CreateThemeManifestInput): CreateThemeMan
     description: input.description?.trim() || undefined,
     author: input.author?.trim() || undefined,
     homepage: input.homepage?.trim().startsWith('https://') ? input.homepage.trim() : undefined,
+    socials: input.socials,
+    credits: input.credits,
     tokens: {
       light: normalizeTokenMap(input.tokens.light),
       dark: normalizeTokenMap(input.tokens.dark)
@@ -433,7 +500,14 @@ function createDefaultDb(): BrowserDb {
       plugins: [],
       themes: [],
       activeThemeId: null
-    }
+    },
+    adminProfiles: {
+      [profileId]: {
+        ...DEFAULT_ADMIN_PROFILE,
+        displayName: 'Web User'
+      }
+    },
+    adminPins: {}
   }
 }
 
@@ -470,11 +544,22 @@ function loadDb(): BrowserDb {
       parsed.marketplace.activeThemeId =
         typeof parsed.marketplace.activeThemeId === 'string' ? parsed.marketplace.activeThemeId : null
     }
+    if (!parsed.adminProfiles || typeof parsed.adminProfiles !== 'object') {
+      parsed.adminProfiles = {}
+    }
+    if (!parsed.adminPins || typeof parsed.adminPins !== 'object') {
+      parsed.adminPins = {}
+    }
     if (!parsed.appearance || typeof parsed.appearance !== 'object') {
       parsed.appearance = {}
     }
     for (const profile of parsed.profiles) {
       parsed.appearance[profile.id] = normalizeAppearance(parsed.appearance[profile.id])
+      parsed.adminProfiles[profile.id] = normalizeAdminProfile(
+        parsed.adminProfiles[profile.id],
+        profile.displayName
+      )
+      parsed.adminProfiles[profile.id].security.hasAdminPin = Boolean(parsed.adminPins[profile.id])
     }
     return parsed
   } catch {
@@ -672,6 +757,20 @@ function pickFileText(): Promise<string | null> {
 
 export function createBrowserApiClient(): ApiClient {
   return {
+    app: {
+      getInfo: async () => ({ version: '0.1.1' }),
+      checkForUpdates: async () => ({
+        ok: true,
+        updateAvailable: false,
+        currentVersion: '0.1.1',
+        reason: 'Desktop update checks run in the packaged Electron app.'
+      })
+    },
+    window: {
+      minimize: async () => undefined,
+      toggleMaximize: async () => undefined,
+      close: async () => undefined
+    },
     profile: {
       list: async () =>
         withDb((db) =>
@@ -683,12 +782,27 @@ export function createBrowserApiClient(): ApiClient {
         ),
       getSession: async () =>
         withDb((db) => {
-          const activeSession = [...db.sessions]
+          const activeSessions = [...db.sessions]
             .sort((a, b) => new Date(b.signedInAt).getTime() - new Date(a.signedInAt).getTime())
-            .find((session) => session.active)
+            .filter((session) => session.active)
+
+          if (activeSessions.length === 0) {
+            return null
+          }
+
+          const now = nowIso()
+          const activeSession = activeSessions.find((session) => !isSessionExpired(session))
+
+          db.sessions = db.sessions.map((session) =>
+            session.active && isSessionExpired(session)
+              ? { ...session, active: false, signedOutAt: session.signedOutAt ?? now }
+              : session
+          )
+
           if (!activeSession) {
             return null
           }
+
           ensureProfileStarterPrompts(db, activeSession.profileId)
           const profile = db.profiles.find((item) => item.id === activeSession.profileId)
           if (!profile) {
@@ -1403,13 +1517,57 @@ export function createBrowserApiClient(): ApiClient {
           db.appearance[profileId] = normalizeAppearance(db.appearance[profileId])
           return clone(db.appearance[profileId])
         }),
-      setAppearance: async (profileId: string, appearance: AppearanceSettingsDTO) =>
+        setAppearance: async (profileId: string, appearance: AppearanceSettingsDTO) =>
+          withDb((db) => {
+            const normalized = normalizeAppearance(appearance)
+            db.appearance[profileId] = normalized
+            return clone(normalized)
+          }),
+      getAdminProfile: async (profileId: string) =>
         withDb((db) => {
-          const normalized = normalizeAppearance(appearance)
-          db.appearance[profileId] = normalized
-          return clone(normalized)
+          const fallbackName = db.profiles.find((item) => item.id === profileId)?.displayName ?? 'AMP User'
+          const profile = normalizeAdminProfile(db.adminProfiles[profileId], fallbackName)
+          profile.security.hasAdminPin = Boolean(db.adminPins[profileId])
+          db.adminProfiles[profileId] = profile
+          return clone(profile)
+        }),
+      setAdminProfile: async (profileId: string, profile: AdminProfileInput) =>
+        withDb((db) => {
+          const fallbackName = db.profiles.find((item) => item.id === profileId)?.displayName ?? 'AMP User'
+          const current = normalizeAdminProfile(db.adminProfiles[profileId], fallbackName)
+          const next = normalizeAdminProfile(
+            {
+              ...current,
+              ...profile,
+              socials: profile.socials ? { ...current.socials, ...profile.socials } : current.socials
+            },
+            fallbackName
+          )
+          next.security.hasAdminPin = Boolean(db.adminPins[profileId])
+          db.adminProfiles[profileId] = next
+          return clone(next)
+        }),
+      setAdminPin: async (profileId: string, pin: string) =>
+        withDb((db) => {
+          db.adminPins[profileId] = hashBrowserPin(pin)
+          const fallbackName = db.profiles.find((item) => item.id === profileId)?.displayName ?? 'AMP User'
+          const profile = normalizeAdminProfile(db.adminProfiles[profileId], fallbackName)
+          profile.security.hasAdminPin = true
+          db.adminProfiles[profileId] = profile
+          return clone(profile)
+        }),
+      verifyAdminPin: async (profileId: string, pin: string) =>
+        withDb((db) => ({ ok: db.adminPins[profileId] === hashBrowserPin(pin) })),
+      clearAdminPin: async (profileId: string) =>
+        withDb((db) => {
+          delete db.adminPins[profileId]
+          const fallbackName = db.profiles.find((item) => item.id === profileId)?.displayName ?? 'AMP User'
+          const profile = normalizeAdminProfile(db.adminProfiles[profileId], fallbackName)
+          profile.security.hasAdminPin = false
+          db.adminProfiles[profileId] = profile
+          return clone(profile)
         })
-    },
+      },
     marketplace: {
       getState: async (_profileId: string) =>
         withDb((db) => {
@@ -1574,7 +1732,8 @@ export function createBrowserApiClient(): ApiClient {
       openThemeFolder: async () => ({
         ok: false,
         reason: 'Theme folders are available in the desktop app.'
-      })
+      }),
+      onDeepLinkInstalled: () => () => {}
     }
   }
 }

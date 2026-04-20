@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
@@ -17,6 +17,14 @@ const DEFAULT_WINDOW_BOUNDS: WindowBounds = {
 const MIN_WINDOW_WIDTH = 1100
 const MIN_WINDOW_HEIGHT = 720
 const WINDOW_STATE_FILE = 'window-state.json'
+
+function getWindowIconPath(): string {
+  if (app.isPackaged) {
+    return join(process.resourcesPath, 'icon.ico')
+  }
+
+  return join(process.cwd(), 'src/assets/imgs/icon.ico')
+}
 
 function getWindowStatePath(): string {
   return join(app.getPath('userData'), WINDOW_STATE_FILE)
@@ -96,13 +104,17 @@ function saveWindowBounds(win: BrowserWindow): void {
 
 export function createMainWindow(): BrowserWindow {
   const savedBounds = readWindowBounds()
+  const winIcon = getWindowIconPath()
+
   const win = new BrowserWindow({
+    title: 'AMP',
     ...savedBounds,
     minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
-    titleBarStyle: 'hiddenInset',
+    frame: false,
     autoHideMenuBar: true,
     backgroundColor: '#f8f4ee',
+    icon: winIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
@@ -151,3 +163,27 @@ export function createMainWindow(): BrowserWindow {
 
   return win
 }
+
+function getSenderWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
+  return BrowserWindow.fromWebContents(event.sender)
+}
+
+ipcMain.handle('window.minimize', (event) => {
+  getSenderWindow(event)?.minimize()
+})
+
+ipcMain.handle('window.toggleMaximize', (event) => {
+  const win = getSenderWindow(event)
+  if (!win) {
+    return
+  }
+  if (win.isMaximized()) {
+    win.unmaximize()
+  } else {
+    win.maximize()
+  }
+})
+
+ipcMain.handle('window.close', (event) => {
+  getSenderWindow(event)?.close()
+})

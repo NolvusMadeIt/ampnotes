@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, FolderOpen } from 'lucide-react'
 import type {
+  AdminProfileDTO,
+  AdminProfileInput,
   AppearanceSettingsDTO,
   CreatePluginManifestInput,
   CreateThemeManifestInput,
@@ -17,7 +19,7 @@ import { Modal } from '@renderer/components/ui/Modal'
 interface SettingsDialogProps {
   asPage?: boolean
   open?: boolean
-  section?: 'general' | 'plugins' | 'themes' | 'all'
+  section?: 'general' | 'plugins' | 'themes' | 'admin' | 'all'
   currentTheme: ThemeMode
   appearance: AppearanceSettingsDTO
   marketplaceState: MarketplaceStateDTO
@@ -41,6 +43,11 @@ interface SettingsDialogProps {
   onSaveGroqKey: (apiKey: string) => Promise<void>
   onClearGroqKey: () => Promise<void>
   isGroqKeyConfigured: boolean
+  adminProfile: AdminProfileDTO | null
+  onSaveAdminProfile: (profile: AdminProfileInput) => Promise<void>
+  onSetAdminPin: (pin: string) => Promise<void>
+  onClearAdminPin: () => Promise<void>
+  onVerifyAdminPin: (pin: string) => Promise<{ ok: boolean }>
   onSignOut: () => Promise<void>
 }
 
@@ -50,6 +57,15 @@ const PLUGIN_MANIFEST_PLACEHOLDER = `{
   "version": "1.0.0",
   "description": "Adds {wordcount} and {tools.wordcount} token support in the markdown editor.",
   "author": "Your Team",
+  "socials": {
+    "github": "https://github.com/your-team"
+  },
+  "credits": {
+    "name": "Your Team",
+    "socials": {
+      "website": "https://example.com"
+    }
+  },
   "entry": "plugins/wordcount/index.js",
   "homepage": "https://example.com/wordcount",
   "permissions": ["prompt.read", "template.read"]
@@ -61,6 +77,15 @@ const THEME_MANIFEST_PLACEHOLDER = `{
   "version": "1.0.0",
   "description": "Warm paper tones for focused writing.",
   "author": "Your Team",
+  "socials": {
+    "github": "https://github.com/your-team"
+  },
+  "credits": {
+    "name": "Your Team",
+    "socials": {
+      "website": "https://example.com"
+    }
+  },
   "homepage": "https://example.com/themes/sunset-paper",
   "tokens": {
     "light": {
@@ -98,6 +123,8 @@ type ThemeBuilderToken =
   | '--surface-2'
   | '--text'
   | '--text-muted'
+  | '--icon'
+  | '--icon-muted'
   | '--border'
   | '--popover'
   | '--popover-foreground'
@@ -134,6 +161,8 @@ const THEME_COLOR_SECTIONS: readonly ThemeColorSection[] = [
       ['--surface-2', 'Secondary', 'Navigation hovers and soft panels'],
       ['--text', 'Foreground', 'Primary readable text'],
       ['--text-muted', 'Muted Foreground', 'Helper text and metadata'],
+      ['--icon', 'Icon', 'Primary tool and navigation icons'],
+      ['--icon-muted', 'Muted Icon', 'Secondary and inactive icons'],
       ['--border', 'Border', 'Dividers and quiet outlines']
     ]
   },
@@ -216,6 +245,8 @@ const DEFAULT_THEME_BUILDER = {
     '--surface-2': '#f0f2f5',
     '--text': '#101114',
     '--text-muted': '#606775',
+    '--icon': '#303844',
+    '--icon-muted': '#758091',
     '--border': '#d9dde5',
     '--popover': '#ffffff',
     '--popover-foreground': '#101114',
@@ -243,6 +274,8 @@ const DEFAULT_THEME_BUILDER = {
     '--surface-2': '#181b22',
     '--text': '#f4f6fb',
     '--text-muted': '#a4adbb',
+    '--icon': '#dfe6f3',
+    '--icon-muted': '#8e99aa',
     '--border': '#252a33',
     '--popover': '#151820',
     '--popover-foreground': '#f4f6fb',
@@ -356,6 +389,8 @@ function toThemeManifestInput(theme: MarketplaceStateDTO['themes'][number]): Cre
     description: theme.description,
     author: theme.author,
     homepage: theme.homepage,
+    socials: theme.socials,
+    credits: theme.credits,
     tokens: theme.tokens
   }
 }
@@ -369,6 +404,8 @@ function toPluginManifestInput(plugin: MarketplaceStateDTO['plugins'][number]): 
     author: plugin.author,
     entry: plugin.entry,
     homepage: plugin.homepage,
+    socials: plugin.socials,
+    credits: plugin.credits,
     permissions: plugin.permissions
   }
 }
@@ -400,8 +437,16 @@ export function SettingsDialog({
   onSaveGroqKey,
   onClearGroqKey,
   isGroqKeyConfigured,
+  adminProfile,
+  onSaveAdminProfile,
+  onSetAdminPin,
+  onClearAdminPin,
+  onVerifyAdminPin,
   onSignOut
 }: SettingsDialogProps) {
+  const [activeSection, setActiveSection] = useState<'general' | 'plugins' | 'themes' | 'admin'>(
+    section === 'plugins' || section === 'themes' || section === 'admin' ? section : 'general'
+  )
   const [apiKey, setApiKey] = useState('')
   const [fontScaleDraft, setFontScaleDraft] = useState(appearance.fontScale)
   const [pluginManifestJson, setPluginManifestJson] = useState('')
@@ -415,16 +460,44 @@ export function SettingsDialog({
   const [activeBuilderToken, setActiveBuilderToken] = useState<ThemeBuilderToken | null>(null)
   const [marketplaceError, setMarketplaceError] = useState<string | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [adminDraft, setAdminDraft] = useState<AdminProfileInput>({
+    displayName: adminProfile?.displayName ?? '',
+    avatarUrl: adminProfile?.avatarUrl,
+    socials: adminProfile?.socials ?? {}
+  })
+  const [adminPinDraft, setAdminPinDraft] = useState('')
+  const [adminVerifyPinDraft, setAdminVerifyPinDraft] = useState('')
+  const [adminMessage, setAdminMessage] = useState<string | null>(null)
+  const [adminError, setAdminError] = useState<string | null>(null)
   const tokenPreviewRefs = useRef<Partial<Record<ThemeBuilderToken, HTMLDivElement | null>>>({})
 
   const activeThemeName = useMemo(() => {
     const active = marketplaceState.themes.find((item) => item.id === marketplaceState.activeThemeId)
     return active?.name ?? null
   }, [marketplaceState.activeThemeId, marketplaceState.themes])
+  const themePresetSelectValue = marketplaceState.activeThemeId
+    ? `theme:${marketplaceState.activeThemeId}`
+    : `preset:${appearance.themePreset}`
 
-  const showGeneral = section === 'general' || section === 'all'
-  const showPlugins = section === 'plugins' || section === 'all'
-  const showThemes = section === 'themes' || section === 'all'
+  useEffect(() => {
+    setActiveSection(section === 'plugins' || section === 'themes' || section === 'admin' ? section : 'general')
+  }, [section])
+
+  useEffect(() => {
+    if (!adminProfile) {
+      return
+    }
+    setAdminDraft({
+      displayName: adminProfile.displayName,
+      avatarUrl: adminProfile.avatarUrl,
+      socials: adminProfile.socials
+    })
+  }, [adminProfile])
+
+  const showGeneral = activeSection === 'general'
+  const showPlugins = activeSection === 'plugins'
+  const showThemes = activeSection === 'themes'
+  const showAdmin = activeSection === 'admin'
   const builderColors = themeBuilder[builderMode]
   const activeTokenLabel = useMemo(() => {
     if (!activeBuilderToken) {
@@ -493,6 +566,63 @@ export function SettingsDialog({
       themePreset: next.themePreset ?? appearance.themePreset
     }
     await onAppearanceChange(merged)
+  }
+
+  const handleSaveAdminProfile = async () => {
+    setAdminError(null)
+    setAdminMessage(null)
+    const displayName = adminDraft.displayName?.trim()
+    if (!displayName) {
+      setAdminError('Display name is required.')
+      return
+    }
+    await runAction('admin-save-profile', async () => {
+      await onSaveAdminProfile({
+        displayName,
+        avatarUrl: adminDraft.avatarUrl?.trim() || undefined,
+        socials: {
+          github: adminDraft.socials?.github?.trim() || undefined,
+          x: adminDraft.socials?.x?.trim() || undefined,
+          website: adminDraft.socials?.website?.trim() || undefined
+        },
+        windowsDevicePinHintEnabled: Boolean(adminProfile?.security.windowsDevicePinHintEnabled)
+      })
+      setAdminMessage('Admin profile saved.')
+    })
+  }
+
+  const handleSetAdminPin = async () => {
+    setAdminError(null)
+    setAdminMessage(null)
+    const pin = adminPinDraft.trim()
+    if (!/^[0-9]{4,32}$/.test(pin)) {
+      setAdminError('PIN must be 4-32 numeric characters.')
+      return
+    }
+    await runAction('admin-set-pin', async () => {
+      await onSetAdminPin(pin)
+      setAdminPinDraft('')
+      setAdminMessage('Admin PIN saved securely on this device.')
+    })
+  }
+
+  const handleVerifyAdminPin = async () => {
+    setAdminError(null)
+    setAdminMessage(null)
+    const pin = adminVerifyPinDraft.trim()
+    if (!pin) {
+      setAdminError('Enter PIN to verify.')
+      return
+    }
+    await runAction('admin-verify-pin', async () => {
+      const result = await onVerifyAdminPin(pin)
+      if (!result.ok) {
+        setAdminError('PIN check failed.')
+        return
+      }
+      setAdminMessage('PIN verified.')
+      setAdminVerifyPinDraft('')
+    })
   }
 
   const updateBuilderToken = (mode: BuilderMode, token: string, value: string) => {
@@ -699,6 +829,23 @@ export function SettingsDialog({
 
   const body = (
     <div className="space-y-6">
+        <div className="flex flex-wrap gap-2 border-b border-line/20 pb-3">
+          {([
+            ['general', 'General'],
+            ['plugins', 'Plugins'],
+            ['themes', 'Customize Themes'],
+            ['admin', 'Admin']
+          ] as const).map(([value, label]) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={activeSection === value ? 'primary' : 'secondary'}
+            onClick={() => setActiveSection(value)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
       {showGeneral && (
         <>
           <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
@@ -723,7 +870,7 @@ export function SettingsDialog({
           <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
             <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
               Reading & Typography
-              <HelpTooltip text="Choose one of five fonts, set font size, and choose one of five built-in theme presets." />
+              <HelpTooltip text="Choose reading fonts, font size, and either a built-in preset or an installed custom theme." />
             </h3>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
@@ -747,16 +894,33 @@ export function SettingsDialog({
                 <span className="mb-1 block font-medium">Theme preset</span>
                 <select
                   className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 outline-none focus:border-accent/10"
-                  value={appearance.themePreset}
+                  value={themePresetSelectValue}
                   onChange={async (event) => {
-                    await applyAppearance({ themePreset: event.target.value as ThemePresetOption })
+                    const value = event.target.value
+                    if (value.startsWith('theme:')) {
+                      await onSetActiveMarketplaceTheme(value.slice('theme:'.length))
+                      return
+                    }
+                    await onSetActiveMarketplaceTheme(null)
+                    await applyAppearance({ themePreset: value.replace('preset:', '') as ThemePresetOption })
                   }}
                 >
+                  <optgroup label="Built-in presets">
                   {PRESET_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={`preset:${option.value}`}>
                       {option.label}
                     </option>
                   ))}
+                  </optgroup>
+                  {marketplaceState.themes.length > 0 && (
+                    <optgroup label="Custom themes">
+                      {marketplaceState.themes.map((theme) => (
+                        <option key={theme.id} value={`theme:${theme.id}`}>
+                          {theme.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
             </div>
@@ -985,6 +1149,9 @@ export function SettingsDialog({
                         {plugin.name} <span className="text-muted">v{plugin.version}</span>
                       </p>
                       <p className="text-xs text-muted">{plugin.id}</p>
+                      {plugin.credits?.name ? (
+                        <p className="text-xs text-muted">Credits: {plugin.credits.name}</p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
@@ -1061,6 +1228,170 @@ export function SettingsDialog({
                 ))}
               </div>
             )}
+          </article>
+        </section>
+      )}
+
+      {showAdmin && (
+        <section className="space-y-4 rounded-xl border border-line/20 bg-surface2 p-4">
+          <div>
+            <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+              Admin
+              <HelpTooltip text="Manage creator identity, credit metadata, and local admin security controls." />
+            </h3>
+            <p className="mt-1 text-sm text-muted">
+              Credits from this profile are embedded in prompt exports and manifest exports.
+            </p>
+          </div>
+
+          {adminError && (
+            <div className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {adminError}
+            </div>
+          )}
+          {adminMessage && (
+            <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2 text-sm text-success">
+              {adminMessage}
+            </div>
+          )}
+
+          <article className="space-y-3 rounded-lg border border-line/20 bg-surface p-3">
+            <p className="text-sm font-semibold">Creator Profile</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium text-muted">Display name</span>
+                <input
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  value={adminDraft.displayName ?? ''}
+                  onChange={(event) => setAdminDraft((current) => ({ ...current, displayName: event.target.value }))}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium text-muted">Avatar URL (optional)</span>
+                <input
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  placeholder="https://..."
+                  value={adminDraft.avatarUrl ?? ''}
+                  onChange={(event) => setAdminDraft((current) => ({ ...current, avatarUrl: event.target.value }))}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium text-muted">GitHub</span>
+                <input
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  placeholder="https://github.com/..."
+                  value={adminDraft.socials?.github ?? ''}
+                  onChange={(event) =>
+                    setAdminDraft((current) => ({
+                      ...current,
+                      socials: { ...(current.socials ?? {}), github: event.target.value }
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium text-muted">X / Twitter</span>
+                <input
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  placeholder="https://x.com/..."
+                  value={adminDraft.socials?.x ?? ''}
+                  onChange={(event) =>
+                    setAdminDraft((current) => ({
+                      ...current,
+                      socials: { ...(current.socials ?? {}), x: event.target.value }
+                    }))
+                  }
+                />
+              </label>
+              <label className="block text-xs md:col-span-2">
+                <span className="mb-1 block font-medium text-muted">Website</span>
+                <input
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  placeholder="https://..."
+                  value={adminDraft.socials?.website ?? ''}
+                  onChange={(event) =>
+                    setAdminDraft((current) => ({
+                      ...current,
+                      socials: { ...(current.socials ?? {}), website: event.target.value }
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" disabled={busyKey === 'admin-save-profile'} onClick={handleSaveAdminProfile}>
+                Save Admin Profile
+              </Button>
+            </div>
+          </article>
+
+          <article className="space-y-3 rounded-lg border border-line/20 bg-surface p-3">
+            <p className="text-sm font-semibold">Security</p>
+            <p className="text-xs text-muted">
+              Configure a local Admin PIN for sensitive actions. This PIN is stored securely per profile on this device.
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium text-muted">Set Admin PIN</span>
+                <input
+                  type="password"
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  placeholder="4-32 digits"
+                  value={adminPinDraft}
+                  onChange={(event) => setAdminPinDraft(event.target.value)}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="mb-1 block font-medium text-muted">Verify PIN</span>
+                <input
+                  type="password"
+                  className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 outline-none focus:border-accent/20"
+                  placeholder="Enter PIN to verify"
+                  value={adminVerifyPinDraft}
+                  onChange={(event) => setAdminVerifyPinDraft(event.target.value)}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" disabled={busyKey === 'admin-set-pin'} onClick={handleSetAdminPin}>
+                Save PIN
+              </Button>
+              <Button size="sm" variant="secondary" disabled={busyKey === 'admin-verify-pin'} onClick={handleVerifyAdminPin}>
+                Verify PIN
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={busyKey === 'admin-clear-pin'}
+                onClick={async () =>
+                  runAction('admin-clear-pin', async () => {
+                    await onClearAdminPin()
+                    setAdminMessage('Admin PIN removed.')
+                  })
+                }
+              >
+                Clear PIN
+              </Button>
+              <label className="inline-flex items-center gap-2 rounded-lg border border-line/20 bg-surface2 px-3 py-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={Boolean(adminProfile?.security.windowsDevicePinHintEnabled)}
+                  onChange={async (event) => {
+                    await onSaveAdminProfile({
+                      displayName: adminDraft.displayName ?? adminProfile?.displayName ?? 'AMP User',
+                      avatarUrl: adminDraft.avatarUrl,
+                      socials: adminDraft.socials,
+                      windowsDevicePinHintEnabled: event.target.checked
+                    })
+                    setAdminMessage('Windows device PIN hint preference updated.')
+                  }}
+                />
+                Use Windows device PIN hint for admin actions
+              </label>
+            </div>
+            <p className="text-xs text-muted">
+              PIN configured: {adminProfile?.security.hasAdminPin ? 'Yes' : 'No'}
+            </p>
           </article>
         </section>
       )}
@@ -1582,6 +1913,9 @@ export function SettingsDialog({
                           {themeItem.name} <span className="text-muted">v{themeItem.version}</span>
                         </p>
                         <p className="text-xs text-muted">{themeItem.id}</p>
+                        {themeItem.credits?.name ? (
+                          <p className="text-xs text-muted">Credits: {themeItem.credits.name}</p>
+                        ) : null}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <Button

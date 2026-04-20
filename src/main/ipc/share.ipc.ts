@@ -7,14 +7,26 @@ import { formatPromptValidationIssues, validatePromptForShare } from '@shared/va
 import type { IpcContext } from './context'
 import { createSharePackage, encodeSharePackage } from '@main/share/encoder'
 import { decodeSharePackage } from '@main/share/decoder'
-import { getSharePayloadHash, validateSharePackage } from '@main/share/validation'
-import type { SelectedExportBundle } from '@shared/types'
+import { getSharePayloadHash, scanPayloadForThreats, validateSharePackage } from '@main/share/validation'
+import type { ExportCredits, SelectedExportBundle } from '@shared/types'
 
 function contentHash(title: string, content: string): string {
   return createHash('sha256').update(`${title}::${content}`).digest('hex')
 }
 
 export function registerShareIpc(context: IpcContext): void {
+  const resolveCredits = (profileId: string): ExportCredits | undefined => {
+    const admin = context.settingsRepo.getAdminProfile(profileId)
+    const creditsName = admin.displayName?.trim()
+    if (!creditsName) {
+      return undefined
+    }
+    return {
+      name: creditsName,
+      socials: admin.socials
+    }
+  }
+
   ipcMain.handle('share.generateCode', (_event, payload: unknown) => {
     const request = payload as { promptId: string }
     const prompt = context.promptRepo.getPromptById(request.promptId)
@@ -26,7 +38,7 @@ export function registerShareIpc(context: IpcContext): void {
       throw new Error(formatPromptValidationIssues(issues))
     }
 
-    const pkg = createSharePackage(prompt)
+    const pkg = createSharePackage(prompt, resolveCredits(prompt.profileId))
     return {
       encoded: encodeSharePackage(pkg),
       package: pkg
@@ -44,7 +56,11 @@ export function registerShareIpc(context: IpcContext): void {
       throw new Error(formatPromptValidationIssues(issues))
     }
 
-    const pkg = createSharePackage(prompt)
+    const pkg = createSharePackage(prompt, resolveCredits(prompt.profileId))
+    const scan = scanPayloadForThreats(JSON.stringify(pkg))
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: 'Export Prompt',
       defaultPath: `${prompt.title.replace(/\s+/g, '-').toLowerCase()}.${request.format === 'json' ? 'json' : 'txt'}`,
@@ -101,9 +117,10 @@ export function registerShareIpc(context: IpcContext): void {
       createdAt: new Date().toISOString(),
       source: {
         app: 'ampnotes',
-        version: '0.1.0'
+        version: '0.1.2'
       },
-      prompts: prompts.map((prompt) => createSharePackage(prompt)),
+      credits: resolveCredits(request.profileId),
+      prompts: prompts.map((prompt) => createSharePackage(prompt, resolveCredits(prompt.profileId))),
       templates: templates.map((template) => ({
         id: template.id,
         scope: template.scope,
@@ -112,6 +129,10 @@ export function registerShareIpc(context: IpcContext): void {
         category: template.category,
         tags: template.tags
       }))
+    }
+    const scan = scanPayloadForThreats(JSON.stringify(bundle))
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
     }
 
     const { canceled, filePath } = await dialog.showSaveDialog({
@@ -131,6 +152,10 @@ export function registerShareIpc(context: IpcContext): void {
   ipcMain.handle('share.importCode', (_event, payload: unknown) => {
     const request = shareImportSchema.parse(payload)
     const parsed = validateSharePackage(decodeSharePackage(request.encoded))
+    const scan = scanPayloadForThreats(JSON.stringify(parsed))
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
 
     const duplicate = context.promptRepo.findDuplicate(
       request.profileId,
@@ -224,6 +249,10 @@ export function registerShareIpc(context: IpcContext): void {
     let created
     if (ext === '.json') {
       const parsed = validateSharePackage(JSON.parse(raw))
+      const scan = scanPayloadForThreats(JSON.stringify(parsed))
+      if (!scan.ok) {
+        throw new Error(scan.reason ?? 'Security scan failed')
+      }
       created = context.promptRepo.createPrompt(request.profileId, {
         title: parsed.prompt.title,
         content: parsed.prompt.content,

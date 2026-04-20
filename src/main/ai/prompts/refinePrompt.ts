@@ -5,13 +5,15 @@ export function buildRefinementPrompt(request: RefinementRequest): string {
   const preserveIntent = request.preserveIntent !== false
 
   return [
-    'You are an expert prompt engineer.',
-    'Refine the user prompt while preserving core intent and scope.',
+    'You are a helpful prompt engineer who improves prompts to be clearer, more specific, and more effective.',
+    'Make meaningful improvements: add structure, clarify output format, add relevant constraints, include examples if helpful.',
+    preserveIntent
+      ? 'Preserve the original intent, audience, and requested outcome while improving the wording and structure.'
+      : 'You may reshape the prompt more substantially if it better satisfies the stated goals.',
     `Goals: ${goals}`,
-    `Preserve intent strictly: ${preserveIntent ? 'yes' : 'no'}`,
     request.targetTool ? `Target AI tool: ${request.targetTool}` : '',
     '',
-    'Return only the improved prompt text without commentary.',
+    'Return ONLY the improved prompt text without any extra commentary.',
     '',
     'Original prompt:',
     request.content

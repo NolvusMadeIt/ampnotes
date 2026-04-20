@@ -1,0 +1,25 @@
+{
+  "name": "amp-marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AMP Marketplace for free and paid themes/plugins.",
+  "scripts": {
+    "dev": "next dev -p 4100",
+    "dev:auto": "next dev -p 0",
+    "build": "next build",
+    "build:full": "npm run typecheck && npm run build",
+    "start": "next start -p 4100",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^16.2.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "typescript": "^5.9.3"
+  }
+}
