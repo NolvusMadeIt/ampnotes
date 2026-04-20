@@ -176,9 +176,10 @@ export async function checkForUpdates(
   try {
     if (app.isPackaged) {
       const result = await autoUpdater.checkForUpdates()
+      const updateAvailable = result?.isUpdateAvailable ?? false
       return {
         ok: true,
-        updateAvailable: Boolean(result?.updateInfo?.version),
+        updateAvailable,
         currentVersion: app.getVersion(),
         latestVersion: result?.updateInfo?.version
       }

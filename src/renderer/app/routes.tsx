@@ -36,6 +36,8 @@ const EMPTY_MARKETPLACE_STATE: MarketplaceStateDTO = {
   activeThemeId: null
 }
 
+const MARKETPLACE_URL = 'https://nolvusmadeit.github.io/ampnotes/'
+
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
@@ -1209,7 +1211,7 @@ export default function Routes() {
             />
             <iframe
               title="AMP Marketplace"
-              src="http://localhost:4100"
+              src={MARKETPLACE_URL}
               className="min-h-0 flex-1 border-0 bg-bg"
             />
             <AppFooter
