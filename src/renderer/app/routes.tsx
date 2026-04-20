@@ -9,7 +9,6 @@ import { RefineModal } from '@renderer/features/refine/RefineModal'
 import { ShareDialog } from '@renderer/features/sharing/ShareDialog'
 import { ToastHost, type AppToast } from '@renderer/components/ui/ToastHost'
 import { ConfirmDialog } from '@renderer/components/ui/ConfirmDialog'
-import { Modal } from '@renderer/components/ui/Modal'
 import { getApi } from '@renderer/lib/api-client'
 import { applyAppearance, applyTheme, resolveTheme } from '@renderer/lib/theme'
 import {
@@ -18,6 +17,7 @@ import {
   validatePromptForShare
 } from '@shared/validation/prompt'
 import type {
+  AdminProfileDTO,
   AppearanceSettingsDTO,
   CreatePluginManifestInput,
   CreateThemeManifestInput,
@@ -43,7 +43,7 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
 }
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
-const DEFAULT_APP_VERSION = '0.1.1'
+const DEFAULT_APP_VERSION = '0.1.2'
 
 function AppFooter({
   version,
@@ -70,6 +70,52 @@ function AppFooter({
   )
 }
 
+function AppTopNav({
+  title,
+  onSettings,
+  onMarketplace,
+  onAbout,
+  onTos,
+  onCheckForUpdates,
+  onClose
+}: {
+  title: string
+  onSettings: () => void
+  onMarketplace: () => void
+  onAbout: () => void
+  onTos: () => void
+  onCheckForUpdates: () => void
+  onClose?: () => void
+}) {
+  return (
+    <header className="flex items-center gap-4 border-b border-line/20 bg-surface px-5 py-3">
+      <h2 className="editorial-heading text-xl font-semibold">{title}</h2>
+      <nav className="ml-auto flex items-center gap-2 text-sm">
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onMarketplace}>
+          Marketplace
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onSettings}>
+          Settings
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onAbout}>
+          About
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onTos}>
+          ToS
+        </button>
+        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onCheckForUpdates}>
+          Updates
+        </button>
+        {onClose ? (
+          <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onClose}>
+            Close
+          </button>
+        ) : null}
+      </nav>
+    </header>
+  )
+}
+
 export default function Routes() {
   const api = useMemo(() => getApi(), [])
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION)
@@ -88,7 +134,7 @@ export default function Routes() {
   const [toasts, setToasts] = useState<AppToast[]>([])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'all'>('all')
+  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'admin' | 'all'>('all')
   const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
 
@@ -104,6 +150,7 @@ export default function Routes() {
   const [newPromptRefineConfigured, setNewPromptRefineConfigured] = useState(false)
   const [newPromptRefining, setNewPromptRefining] = useState(false)
   const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
+  const [adminProfile, setAdminProfile] = useState<AdminProfileDTO | null>(null)
 
   const toastTimersRef = useRef<Map<number, number>>(new Map())
   const sessionExpiryTimerRef = useRef<number | null>(null)
@@ -218,7 +265,7 @@ export default function Routes() {
     }
   }, [])
 
-  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'all') => {
+  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'admin' | 'all') => {
     setSettingsSection(section)
     setSettingsOpen(true)
   }, [])
@@ -235,11 +282,18 @@ export default function Routes() {
       ])
       setTheme(savedTheme)
       setAppearance(savedAppearance)
+      if (api.settings.getAdminProfile) {
+        const admin = await api.settings.getAdminProfile(active.profile.id)
+        setAdminProfile(admin)
+      } else {
+        setAdminProfile(null)
+      }
     } else {
       setProfile(null)
       setSession(null)
       setMarketplaceState(EMPTY_MARKETPLACE_STATE)
       setAppearance(DEFAULT_APPEARANCE)
+      setAdminProfile(null)
     }
   }, [api.profile, api.settings])
 
@@ -396,6 +450,12 @@ export default function Routes() {
       ])
       setTheme(savedTheme)
       setAppearance(savedAppearance)
+      if (api.settings.getAdminProfile) {
+        const admin = await api.settings.getAdminProfile(result.profile.id)
+        setAdminProfile(admin)
+      } else {
+        setAdminProfile(null)
+      }
     },
     [api.profile, api.settings]
   )
@@ -411,6 +471,12 @@ export default function Routes() {
       ])
       setTheme(savedTheme)
       setAppearance(savedAppearance)
+      if (api.settings.getAdminProfile) {
+        const admin = await api.settings.getAdminProfile(result.profile.id)
+        setAdminProfile(admin)
+      } else {
+        setAdminProfile(null)
+      }
       flashToast(`Welcome back, ${result.profile.displayName}`)
     },
     [api.profile, api.settings, flashToast]
@@ -1023,12 +1089,24 @@ export default function Routes() {
       {settingsOpen && (
         <div className="fixed inset-0 z-[90] bg-bg p-3">
           <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
-            <header className="flex items-center justify-between border-b border-line/20 px-5 py-4">
-              <h2 className="editorial-heading text-2xl font-semibold">Settings</h2>
-              <button className="text-muted hover:text-text" onClick={() => setSettingsOpen(false)}>
-                Close
-              </button>
-            </header>
+            <AppTopNav
+              title="Settings"
+              onSettings={() => openSettings('general')}
+              onMarketplace={() => {
+                setSettingsOpen(false)
+                setMarketplaceOpen(true)
+              }}
+              onAbout={() => {
+                setSettingsOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setSettingsOpen(false)
+                setLegalPage('tos')
+              }}
+              onCheckForUpdates={handleCheckForUpdates}
+              onClose={() => setSettingsOpen(false)}
+            />
             <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
               <SettingsDialog
                 asPage
@@ -1069,6 +1147,23 @@ export default function Routes() {
                   flashToast('Groq API key cleared')
                 }}
                 isGroqKeyConfigured={groqKeyConfigured}
+                adminProfile={adminProfile}
+                onSaveAdminProfile={async (nextProfile) => {
+                  const updated = await api.settings.setAdminProfile(profile.id, nextProfile)
+                  setAdminProfile(updated)
+                  if (updated.displayName && updated.displayName !== profile.displayName) {
+                    flashToast(`Admin profile updated for ${updated.displayName}`)
+                  }
+                }}
+                onSetAdminPin={async (pin) => {
+                  const updated = await api.settings.setAdminPin(profile.id, pin)
+                  setAdminProfile(updated)
+                }}
+                onVerifyAdminPin={(pin) => api.settings.verifyAdminPin(profile.id, pin)}
+                onClearAdminPin={async () => {
+                  const updated = await api.settings.clearAdminPin(profile.id)
+                  setAdminProfile(updated)
+                }}
                 onSignOut={async () => {
                   await api.profile.signOut()
                   setSettingsOpen(false)
@@ -1094,12 +1189,24 @@ export default function Routes() {
       {marketplaceOpen && (
         <div className="fixed inset-0 z-[90] bg-bg p-3">
           <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
-            <header className="flex items-center justify-between border-b border-line/20 px-5 py-4">
-              <h2 className="editorial-heading text-2xl font-semibold">Marketplace</h2>
-              <button className="text-muted hover:text-text" onClick={() => setMarketplaceOpen(false)}>
-                Close
-              </button>
-            </header>
+            <AppTopNav
+              title="Marketplace"
+              onSettings={() => {
+                setMarketplaceOpen(false)
+                openSettings('general')
+              }}
+              onMarketplace={() => setMarketplaceOpen(true)}
+              onAbout={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('tos')
+              }}
+              onCheckForUpdates={handleCheckForUpdates}
+              onClose={() => setMarketplaceOpen(false)}
+            />
             <iframe
               title="AMP Marketplace"
               src="http://localhost:4100"
@@ -1120,14 +1227,31 @@ export default function Routes() {
         </div>
       )}
 
-      <Modal
-        open={legalPage !== null}
-        onClose={() => setLegalPage(null)}
-        title={legalPage === 'about' ? 'About AMP' : 'Terms of Service'}
-        widthClass="max-w-5xl"
-      >
-        {legalPage === 'about' ? <AboutPage /> : <TermsOfServicePage />}
-      </Modal>
+      {legalPage && (
+        <div className="fixed inset-0 z-[90] bg-bg p-3">
+          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
+            <AppTopNav
+              title={legalPage === 'about' ? 'About AMP' : 'Terms of Service'}
+              onSettings={() => {
+                setLegalPage(null)
+                openSettings('general')
+              }}
+              onMarketplace={() => {
+                setLegalPage(null)
+                setMarketplaceOpen(true)
+              }}
+              onAbout={() => setLegalPage('about')}
+              onTos={() => setLegalPage('tos')}
+              onCheckForUpdates={handleCheckForUpdates}
+              onClose={() => setLegalPage(null)}
+            />
+            <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
+              {legalPage === 'about' ? <AboutPage /> : <TermsOfServicePage />}
+            </div>
+            <AppFooter version={appVersion} onAbout={() => setLegalPage('about')} onTos={() => setLegalPage('tos')} />
+          </div>
+        </div>
+      )}
 
       <NewPromptModal
         open={newPromptOpen}

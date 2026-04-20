@@ -2,6 +2,27 @@
 
 This checklist tracks the current polish phase request.
 
+## Current Mandatory Release Gate (From User)
+
+- [x] Add top navbar to all major full pages (including settings, legal, marketplace view).
+- [x] Add new `Admin` tab in Settings with account security profile.
+- [x] Support admin security credentials:
+- [x] Username + password/pin flow for admin-sensitive actions.
+- [x] Device PIN option labeled for Windows device use.
+- [x] Avatar preference in Admin tab.
+- [x] Include creator credits in exports/imports:
+- [x] Prompt share/export bundles include creator name + socials.
+- [x] Theme/plugin manifests include creator name + socials.
+- [x] Import surfaces display and preserve creator credits.
+- [x] Security hardening for import/export pipeline:
+- [x] Add threat scan before import.
+- [x] Block manifest/payload patterns that can compromise user systems.
+- [x] Keep allowlist validation and safe path checks strict.
+- [x] Update check flow must detect new version and allow direct download from repo/app.
+- [x] Bump app version for this release.
+- [ ] Build executable only after all above are complete.
+- [ ] Commit and upload after verification.
+
 ## Core App Cleanup
 
 - [x] Remove classic app runtime and make Neo workspace the only main app path.

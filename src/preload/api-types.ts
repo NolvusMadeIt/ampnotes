@@ -1,4 +1,6 @@
 import type {
+  AdminProfileDTO,
+  AdminProfileInput,
   CreatePluginManifestInput,
   CreateThemeManifestInput,
   CreateTemplateInput,
@@ -117,6 +119,11 @@ export interface ApiClient {
     setTheme: (profileId: string, theme: ThemeMode) => Promise<ThemeMode>
     getAppearance: (profileId: string) => Promise<AppearanceSettingsDTO>
     setAppearance: (profileId: string, appearance: AppearanceSettingsDTO) => Promise<AppearanceSettingsDTO>
+    getAdminProfile: (profileId: string) => Promise<AdminProfileDTO>
+    setAdminProfile: (profileId: string, profile: AdminProfileInput) => Promise<AdminProfileDTO>
+    setAdminPin: (profileId: string, pin: string) => Promise<AdminProfileDTO>
+    verifyAdminPin: (profileId: string, pin: string) => Promise<{ ok: boolean }>
+    clearAdminPin: (profileId: string) => Promise<AdminProfileDTO>
   }
   marketplace: {
     getState: (profileId: string) => Promise<MarketplaceStateDTO>

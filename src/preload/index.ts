@@ -77,7 +77,12 @@ const api: ApiClient = {
     getTheme: (profileId) => invoke('settings.getTheme', { profileId }),
     setTheme: (profileId, theme) => invoke('settings.setTheme', { profileId, theme }),
     getAppearance: (profileId) => invoke('settings.getAppearance', { profileId }),
-    setAppearance: (profileId, appearance) => invoke('settings.setAppearance', { profileId, appearance })
+    setAppearance: (profileId, appearance) => invoke('settings.setAppearance', { profileId, appearance }),
+    getAdminProfile: (profileId) => invoke('settings.getAdminProfile', { profileId }),
+    setAdminProfile: (profileId, profile) => invoke('settings.setAdminProfile', { profileId, profile }),
+    setAdminPin: (profileId, pin) => invoke('settings.setAdminPin', { profileId, pin }),
+    verifyAdminPin: (profileId, pin) => invoke('settings.verifyAdminPin', { profileId, pin }),
+    clearAdminPin: (profileId) => invoke('settings.clearAdminPin', { profileId })
   },
   marketplace: {
     getState: (profileId) => invoke('marketplace.getState', { profileId }),

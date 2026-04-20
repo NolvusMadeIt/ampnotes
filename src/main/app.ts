@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron'
-import { getDb } from '@main/db/client'
+import { closeDb, getDb } from '@main/db/client'
 import { ProfileRepo, PromptRepo, SettingsRepo, TemplateRepo } from '@main/db/repos'
 import { AIProviderRegistry } from '@main/ai/provider'
 import { GroqProvider } from '@main/ai/providers/groq'
@@ -46,8 +46,13 @@ export async function bootstrapApp(): Promise<void> {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    closeDb()
+    app.exit(0)
   }
+})
+
+app.on('before-quit', () => {
+  closeDb()
 })
 
 app.on('activate', async () => {

@@ -4,8 +4,21 @@ import { dialog, ipcMain, shell } from 'electron'
 import { pluginManifestSchema, themeManifestSchema } from '@shared/contracts/ipc'
 import type { IpcContext } from './context'
 import { normalizePluginManifest, normalizeThemeManifest } from '@main/db/repos/settingsRepo'
+import { scanPayloadForThreats } from '@main/share/validation'
 
 export function registerMarketplaceIpc(context: IpcContext): void {
+  const resolveCredits = (profileId: string) => {
+    const admin = context.settingsRepo.getAdminProfile(profileId)
+    const name = admin.displayName?.trim()
+    if (!name) {
+      return undefined
+    }
+    return {
+      name,
+      socials: admin.socials
+    }
+  }
+
   ipcMain.handle('marketplace.getState', (_event, payload: unknown) => {
     const request = payload as { profileId: string }
     return context.settingsRepo.getMarketplaceState(request.profileId)
@@ -14,6 +27,10 @@ export function registerMarketplaceIpc(context: IpcContext): void {
   ipcMain.handle('marketplace.registerPlugin', (_event, payload: unknown) => {
     const request = payload as { profileId: string; manifest: unknown }
     const manifest = normalizePluginManifest(pluginManifestSchema.parse(request.manifest))
+    const scan = scanPayloadForThreats(JSON.stringify(manifest))
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     return context.settingsRepo.registerPlugin(request.profileId, manifest)
   })
 
@@ -34,6 +51,10 @@ export function registerMarketplaceIpc(context: IpcContext): void {
 
     const filePath = filePaths[0]
     const raw = readFileSync(filePath, 'utf8')
+    const scan = scanPayloadForThreats(raw)
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     const manifest = normalizePluginManifest(pluginManifestSchema.parse(JSON.parse(raw)))
     context.settingsRepo.registerPlugin(request.profileId, manifest, 'local')
     return { ok: true, filePath }
@@ -60,6 +81,10 @@ export function registerMarketplaceIpc(context: IpcContext): void {
     }
 
     const raw = readFileSync(manifestPath, 'utf8')
+    const scan = scanPayloadForThreats(raw)
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     const manifest = normalizePluginManifest(pluginManifestSchema.parse(JSON.parse(raw)))
     context.settingsRepo.registerPlugin(request.profileId, manifest, 'local')
     return { ok: true, folderPath }
@@ -101,6 +126,8 @@ export function registerMarketplaceIpc(context: IpcContext): void {
           author: plugin.author,
           entry: plugin.entry,
           homepage: plugin.homepage,
+          socials: plugin.socials,
+          credits: plugin.credits ?? resolveCredits(request.profileId),
           permissions: plugin.permissions
         },
         null,
@@ -144,6 +171,10 @@ export function registerMarketplaceIpc(context: IpcContext): void {
   ipcMain.handle('marketplace.registerTheme', (_event, payload: unknown) => {
     const request = payload as { profileId: string; manifest: unknown }
     const manifest = normalizeThemeManifest(themeManifestSchema.parse(request.manifest))
+    const scan = scanPayloadForThreats(JSON.stringify(manifest))
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     return context.settingsRepo.registerTheme(request.profileId, manifest)
   })
 
@@ -164,6 +195,10 @@ export function registerMarketplaceIpc(context: IpcContext): void {
 
     const filePath = filePaths[0]
     const raw = readFileSync(filePath, 'utf8')
+    const scan = scanPayloadForThreats(raw)
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     const manifest = normalizeThemeManifest(themeManifestSchema.parse(JSON.parse(raw)))
     context.settingsRepo.registerTheme(request.profileId, manifest, 'local')
     return { ok: true, filePath }
@@ -190,6 +225,10 @@ export function registerMarketplaceIpc(context: IpcContext): void {
     }
 
     const raw = readFileSync(manifestPath, 'utf8')
+    const scan = scanPayloadForThreats(raw)
+    if (!scan.ok) {
+      throw new Error(scan.reason ?? 'Security scan failed')
+    }
     const manifest = normalizeThemeManifest(themeManifestSchema.parse(JSON.parse(raw)))
     context.settingsRepo.registerTheme(request.profileId, manifest, 'local')
     return { ok: true, folderPath }
@@ -230,6 +269,8 @@ export function registerMarketplaceIpc(context: IpcContext): void {
           description: theme.description,
           author: theme.author,
           homepage: theme.homepage,
+          socials: theme.socials,
+          credits: theme.credits ?? resolveCredits(request.profileId),
           tokens: theme.tokens
         },
         null,

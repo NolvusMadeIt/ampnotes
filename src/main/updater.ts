@@ -1,5 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
-import { autoUpdater, type UpdateInfo } from 'electron-updater'
+import updaterPkg from 'electron-updater'
+
+type UpdateInfo = import('electron-updater').UpdateInfo
+const { autoUpdater } = updaterPkg
 
 const RELEASES_API_URL = 'https://api.github.com/repos/NolvusMadeIt/ampnotes/releases/latest'
 const RELEASES_URL = 'https://github.com/NolvusMadeIt/ampnotes/releases/latest'

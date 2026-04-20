@@ -2,7 +2,10 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { app } from 'electron'
 import type {
+  AdminProfileDTO,
+  AdminProfileInput,
   AppearanceSettingsDTO,
+  CreatorSocialLinks,
   CreatePluginManifestInput,
   CreateThemeManifestInput,
   FontFamilyOption,
@@ -29,6 +32,50 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
   themePreset: 'midnight'
+}
+
+const DEFAULT_ADMIN_PROFILE: AdminProfileDTO = {
+  displayName: 'AMP User',
+  socials: {},
+  security: {
+    hasAdminPin: false,
+    windowsDevicePinHintEnabled: false
+  }
+}
+
+function normalizeSocialLinks(input: CreatorSocialLinks | null | undefined): CreatorSocialLinks {
+  const normalize = (value: string | undefined) => {
+    const trimmed = value?.trim()
+    if (!trimmed) {
+      return undefined
+    }
+    if (!trimmed.startsWith('https://')) {
+      return undefined
+    }
+    return trimmed.slice(0, 200)
+  }
+
+  return {
+    github: normalize(input?.github),
+    x: normalize(input?.x),
+    website: normalize(input?.website)
+  }
+}
+
+function normalizeAdminProfile(input: Partial<AdminProfileDTO> | null | undefined): AdminProfileDTO {
+  const displayName = input?.displayName?.trim()
+  const avatarUrl = input?.avatarUrl?.trim()
+  return {
+    displayName:
+      displayName && displayName.length > 0 ? displayName.slice(0, 80) : DEFAULT_ADMIN_PROFILE.displayName,
+    avatarUrl:
+      avatarUrl && avatarUrl.startsWith('https://') ? avatarUrl.slice(0, 200) : undefined,
+    socials: normalizeSocialLinks(input?.socials),
+    security: {
+      hasAdminPin: Boolean(input?.security?.hasAdminPin),
+      windowsDevicePinHintEnabled: Boolean(input?.security?.windowsDevicePinHintEnabled)
+    }
+  }
 }
 
 function getMarketplaceRoot(): string {
@@ -104,6 +151,8 @@ function toPluginManifest(plugin: InstalledPluginDTO): CreatePluginManifestInput
     author: plugin.author,
     entry: plugin.entry,
     homepage: plugin.homepage,
+    socials: plugin.socials,
+    credits: plugin.credits,
     permissions: plugin.permissions
   }
 }
@@ -116,6 +165,8 @@ function toThemeManifest(theme: InstalledThemeDTO): CreateThemeManifestInput {
     description: theme.description,
     author: theme.author,
     homepage: theme.homepage,
+    socials: theme.socials,
+    credits: theme.credits,
     tokens: theme.tokens
   }
 }
@@ -248,6 +299,40 @@ export class SettingsRepo {
     const normalized = normalizeAppearance(appearance)
     this.setJsonSetting(profileId, 'appearance', normalized)
     return normalized
+  }
+
+  getAdminProfile(profileId: string): AdminProfileDTO {
+    const row = this.getJsonSetting<Partial<AdminProfileDTO>>(profileId, 'admin.profile', DEFAULT_ADMIN_PROFILE)
+    return normalizeAdminProfile(row)
+  }
+
+  setAdminProfile(profileId: string, input: AdminProfileInput): AdminProfileDTO {
+    const current = this.getAdminProfile(profileId)
+    const next = normalizeAdminProfile({
+      ...current,
+      displayName: input.displayName,
+      avatarUrl: input.avatarUrl,
+      socials: normalizeSocialLinks(input.socials),
+      security: {
+        ...current.security,
+        windowsDevicePinHintEnabled: Boolean(input.windowsDevicePinHintEnabled)
+      }
+    })
+    this.setJsonSetting(profileId, 'admin.profile', next)
+    return next
+  }
+
+  setAdminPinConfigured(profileId: string, configured: boolean): AdminProfileDTO {
+    const current = this.getAdminProfile(profileId)
+    const next = normalizeAdminProfile({
+      ...current,
+      security: {
+        ...current.security,
+        hasAdminPin: configured
+      }
+    })
+    this.setJsonSetting(profileId, 'admin.profile', next)
+    return next
   }
 
   getMarketplaceState(profileId: string): MarketplaceStateDTO {
@@ -415,8 +500,16 @@ export function normalizeThemeTokenKeys(input: Record<string, string>): Record<s
 }
 
 export function normalizeThemeManifest(input: CreateThemeManifestInput): CreateThemeManifestInput {
+  const creditsName = input.credits?.name?.trim()
   return {
     ...input,
+    socials: normalizeSocialLinks(input.socials),
+    credits: creditsName
+      ? {
+          name: creditsName.slice(0, 80),
+          socials: normalizeSocialLinks(input.credits?.socials)
+        }
+      : undefined,
     tokens: {
       light: input.tokens.light ? normalizeThemeTokenKeys(input.tokens.light) : undefined,
       dark: input.tokens.dark ? normalizeThemeTokenKeys(input.tokens.dark) : undefined
@@ -430,11 +523,19 @@ export function normalizePluginManifest(input: CreatePluginManifestInput): Creat
   const entry = input.entry?.trim()
   const safeEntry =
     entry && /^[a-z0-9_./-]+$/i.test(entry) && !entry.includes('..') ? entry : undefined
+  const creditsName = input.credits?.name?.trim()
 
   return {
     ...input,
     entry: safeEntry,
     homepage: input.homepage?.trim().startsWith('https://') ? input.homepage.trim() : undefined,
+    socials: normalizeSocialLinks(input.socials),
+    credits: creditsName
+      ? {
+          name: creditsName.slice(0, 80),
+          socials: normalizeSocialLinks(input.credits?.socials)
+        }
+      : undefined,
     permissions
   }
 }

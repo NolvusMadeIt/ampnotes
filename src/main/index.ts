@@ -4,10 +4,22 @@ import { enqueueProtocolUrl, findProtocolUrl } from './deepLink'
 
 app.setAppUserModelId('com.ampnotes.desktop')
 
+function forceExit(code: number): void {
+  try {
+    if (app.isReady()) {
+      app.exit(code)
+      return
+    }
+  } catch {
+    // fall through to hard process exit
+  }
+  process.exit(code)
+}
+
 const gotLock = app.requestSingleInstanceLock()
 
 if (!gotLock) {
-  app.quit()
+  forceExit(0)
 }
 
 app.on('second-instance', (_event, argv) => {
@@ -33,10 +45,12 @@ app.on('open-url', (event, url) => {
 
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection in main process:', reason)
+  forceExit(1)
 })
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception in main process:', error)
+  forceExit(1)
 })
 
 app.whenReady().then(async () => {
@@ -49,6 +63,6 @@ app.whenReady().then(async () => {
     await bootstrapApp()
   } catch (error) {
     console.error('Failed to bootstrap app:', error)
-    app.quit()
+    forceExit(1)
   }
 })
