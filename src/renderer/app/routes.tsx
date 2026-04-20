@@ -42,8 +42,37 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   themePreset: 'midnight'
 }
 
+const SESSION_TTL_MS = 48 * 60 * 60 * 1000
+const DEFAULT_APP_VERSION = '0.1.1'
+
+function AppFooter({
+  version,
+  onAbout,
+  onTos
+}: {
+  version: string
+  onAbout: () => void
+  onTos: () => void
+}) {
+  return (
+    <footer className="flex h-8 shrink-0 items-center bg-surface px-4 text-xs text-muted">
+      <span>© 2026 AMP</span>
+      <div className="ml-auto flex items-center gap-3">
+        <button type="button" className="transition-colors hover:text-text" onClick={onAbout}>
+          About
+        </button>
+        <button type="button" className="transition-colors hover:text-text" onClick={onTos}>
+          ToS
+        </button>
+        <span className="mono-meta">v{version}</span>
+      </div>
+    </footer>
+  )
+}
+
 export default function Routes() {
   const api = useMemo(() => getApi(), [])
+  const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION)
   const [profiles, setProfiles] = useState<ProfileDTO[]>([])
   const [profile, setProfile] = useState<ProfileDTO | null>(null)
   const [session, setSession] = useState<SessionDTO | null>(null)
@@ -61,6 +90,7 @@ export default function Routes() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'all'>('all')
   const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false)
 
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineConfigured, setRefineConfigured] = useState(false)
@@ -76,6 +106,7 @@ export default function Routes() {
   const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
 
   const toastTimersRef = useRef<Map<number, number>>(new Map())
+  const sessionExpiryTimerRef = useRef<number | null>(null)
   const toastCounterRef = useRef(1)
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -135,12 +166,31 @@ export default function Routes() {
     toastTimersRef.current.set(id, timer)
   }, [])
 
+  const handleCheckForUpdates = useCallback(async () => {
+    if (!api.app?.checkForUpdates) {
+      flashToast(`AMP ${appVersion} is up to date.`)
+      return
+    }
+    const result = await api.app.checkForUpdates()
+    if (!result.ok) {
+      flashToast(result.reason ?? 'Update check failed.', 'warning')
+      return
+    }
+    if (!result.updateAvailable) {
+      flashToast(`AMP ${result.currentVersion} is up to date.`)
+    }
+  }, [api.app, appVersion, flashToast])
+
   useEffect(() => {
     return () => {
       for (const timer of toastTimersRef.current.values()) {
         window.clearTimeout(timer)
       }
       toastTimersRef.current.clear()
+      if (sessionExpiryTimerRef.current) {
+        window.clearTimeout(sessionExpiryTimerRef.current)
+        sessionExpiryTimerRef.current = null
+      }
     }
   }, [])
 
@@ -193,6 +243,44 @@ export default function Routes() {
     }
   }, [api.profile, api.settings])
 
+  useEffect(() => {
+    if (sessionExpiryTimerRef.current) {
+      window.clearTimeout(sessionExpiryTimerRef.current)
+      sessionExpiryTimerRef.current = null
+    }
+
+    if (!session) {
+      return
+    }
+
+    const signedInAtMs = Date.parse(session.signedInAt)
+    const remainingMs = Number.isFinite(signedInAtMs)
+      ? signedInAtMs + SESSION_TTL_MS - Date.now()
+      : 0
+
+    const expireSession = async () => {
+      await api.profile.signOut()
+      flashToast('Session expired. Please sign in again.', 'warning')
+      await refreshAuth()
+    }
+
+    if (remainingMs <= 0) {
+      void expireSession()
+      return
+    }
+
+    sessionExpiryTimerRef.current = window.setTimeout(() => {
+      void expireSession()
+    }, remainingMs)
+
+    return () => {
+      if (sessionExpiryTimerRef.current) {
+        window.clearTimeout(sessionExpiryTimerRef.current)
+        sessionExpiryTimerRef.current = null
+      }
+    }
+  }, [api.profile, flashToast, refreshAuth, session])
+
   const refreshWorkspace = useCallback(async () => {
     if (!profile) {
       return
@@ -232,6 +320,16 @@ export default function Routes() {
   }, [refreshAuth])
 
   useEffect(() => {
+    if (!api.app?.getInfo) {
+      setAppVersion(DEFAULT_APP_VERSION)
+      return
+    }
+    void api.app.getInfo().then((info) => setAppVersion(info.version)).catch(() => {
+      setAppVersion(DEFAULT_APP_VERSION)
+    })
+  }, [api.app])
+
+  useEffect(() => {
     void refreshWorkspace()
   }, [refreshWorkspace])
 
@@ -268,6 +366,23 @@ export default function Routes() {
       active = false
     }
   }, [api.refine, profile])
+
+  useEffect(() => {
+    if (!api.marketplace.onDeepLinkInstalled) {
+      return undefined
+    }
+
+    return api.marketplace.onDeepLinkInstalled((event) => {
+      void refreshWorkspace()
+      if (event.kind === 'theme') {
+        flashToast(
+          event.active ? `Installed "${event.name}" and set active theme.` : `Installed "${event.name}" theme.`
+        )
+        return
+      }
+      flashToast(event.enabled ? `Installed "${event.name}" and enabled plugin.` : `Installed "${event.name}" plugin.`)
+    })
+  }, [api.marketplace, flashToast, refreshWorkspace])
 
   const handleCreateAndSignIn = useCallback(
     async (displayName: string) => {
@@ -326,6 +441,7 @@ export default function Routes() {
       content: string
       category?: string
       tags?: string[]
+      folder?: string
       useCase?: string
       aiTarget?: string
     }) => {
@@ -397,6 +513,7 @@ export default function Routes() {
         content: updates.content ?? prompt.content,
         category: updates.category ?? prompt.category,
         tags: updates.tags,
+        folder: updates.folder || undefined,
         useCase: updates.useCase,
         aiTarget: updates.aiTarget,
         favorite: prompt.favorite,
@@ -866,7 +983,9 @@ export default function Routes() {
   return (
     <>
       <NeoApp
+        profileId={profile.id}
         profileName={profile.displayName}
+        appVersion={appVersion}
         prompts={prompts}
         templates={templates}
         tags={tags}
@@ -879,11 +998,12 @@ export default function Routes() {
         onCreatePrompt={handleCreatePrompt}
         onOpenShareImport={() => setShareOpen(true)}
         onOpenSettings={() => openSettings('general')}
-        onOpenPlugins={() => openSettings('plugins')}
-        onOpenThemes={() => openSettings('themes')}
         onOpenAbout={() => setLegalPage('about')}
         onOpenTos={() => setLegalPage('tos')}
-        onOpenMarketplace={() => flashToast('Marketplace publishing is coming soon.')}
+        onOpenMarketplace={() => {
+          setMarketplaceOpen(true)
+        }}
+        onCheckForUpdates={handleCheckForUpdates}
         onCopyPrompt={handleCopy}
         onSavePrompt={handleSavePrompt}
         onDeletePrompt={handleDeletePrompt}
@@ -900,52 +1020,105 @@ export default function Routes() {
         onDeleteTemplate={handleDeleteTemplate}
       />
 
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        section={settingsSection}
-        currentTheme={theme}
-        appearance={appearance}
-        marketplaceState={marketplaceState}
-        onThemeChange={async (nextTheme) => {
-          setTheme(nextTheme)
-          await api.settings.setTheme(profile.id, nextTheme)
-        }}
-        onAppearanceChange={async (nextAppearance) => {
-          setAppearance(nextAppearance)
-          await api.settings.setAppearance(profile.id, nextAppearance)
-        }}
-        onRegisterPlugin={handleRegisterPlugin}
-        onImportPluginManifestFile={handleImportPluginManifestFile}
-        onImportPluginFromFolder={handleImportPluginFromFolder}
-        onExportPluginManifest={handleExportPluginManifest}
-        onTogglePlugin={handleTogglePlugin}
-        onRemovePlugin={handleRemovePlugin}
-        onOpenPluginFolder={handleOpenPluginFolder}
-        onRegisterTheme={handleRegisterTheme}
-        onImportThemeManifestFile={handleImportThemeManifestFile}
-        onImportThemeFromFolder={handleImportThemeFromFolder}
-        onExportThemeManifest={handleExportThemeManifest}
-        onSetActiveMarketplaceTheme={handleSetActiveTheme}
-        onRemoveTheme={handleRemoveTheme}
-        onOpenThemeFolder={handleOpenThemeFolder}
-        onSaveGroqKey={async (apiKey) => {
-          await api.refine.saveApiKey(profile.id, apiKey)
-          setGroqKeyConfigured(true)
-          flashToast('Groq API key saved')
-        }}
-        onClearGroqKey={async () => {
-          await api.refine.clearApiKey(profile.id)
-          setGroqKeyConfigured(false)
-          flashToast('Groq API key cleared')
-        }}
-        isGroqKeyConfigured={groqKeyConfigured}
-        onSignOut={async () => {
-          await api.profile.signOut()
-          setSettingsOpen(false)
-          await refreshAuth()
-        }}
-      />
+      {settingsOpen && (
+        <div className="fixed inset-0 z-[90] bg-bg p-3">
+          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
+            <header className="flex items-center justify-between border-b border-line/20 px-5 py-4">
+              <h2 className="editorial-heading text-2xl font-semibold">Settings</h2>
+              <button className="text-muted hover:text-text" onClick={() => setSettingsOpen(false)}>
+                Close
+              </button>
+            </header>
+            <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
+              <SettingsDialog
+                asPage
+                section={settingsSection}
+                currentTheme={theme}
+                appearance={appearance}
+                marketplaceState={marketplaceState}
+                onThemeChange={async (nextTheme) => {
+                  setTheme(nextTheme)
+                  await api.settings.setTheme(profile.id, nextTheme)
+                }}
+                onAppearanceChange={async (nextAppearance) => {
+                  setAppearance(nextAppearance)
+                  await api.settings.setAppearance(profile.id, nextAppearance)
+                }}
+                onRegisterPlugin={handleRegisterPlugin}
+                onImportPluginManifestFile={handleImportPluginManifestFile}
+                onImportPluginFromFolder={handleImportPluginFromFolder}
+                onExportPluginManifest={handleExportPluginManifest}
+                onTogglePlugin={handleTogglePlugin}
+                onRemovePlugin={handleRemovePlugin}
+                onOpenPluginFolder={handleOpenPluginFolder}
+                onRegisterTheme={handleRegisterTheme}
+                onImportThemeManifestFile={handleImportThemeManifestFile}
+                onImportThemeFromFolder={handleImportThemeFromFolder}
+                onExportThemeManifest={handleExportThemeManifest}
+                onSetActiveMarketplaceTheme={handleSetActiveTheme}
+                onRemoveTheme={handleRemoveTheme}
+                onOpenThemeFolder={handleOpenThemeFolder}
+                onSaveGroqKey={async (apiKey) => {
+                  await api.refine.saveApiKey(profile.id, apiKey)
+                  setGroqKeyConfigured(true)
+                  flashToast('Groq API key saved')
+                }}
+                onClearGroqKey={async () => {
+                  await api.refine.clearApiKey(profile.id)
+                  setGroqKeyConfigured(false)
+                  flashToast('Groq API key cleared')
+                }}
+                isGroqKeyConfigured={groqKeyConfigured}
+                onSignOut={async () => {
+                  await api.profile.signOut()
+                  setSettingsOpen(false)
+                  await refreshAuth()
+                }}
+              />
+            </div>
+            <AppFooter
+              version={appVersion}
+              onAbout={() => {
+                setSettingsOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setSettingsOpen(false)
+                setLegalPage('tos')
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {marketplaceOpen && (
+        <div className="fixed inset-0 z-[90] bg-bg p-3">
+          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
+            <header className="flex items-center justify-between border-b border-line/20 px-5 py-4">
+              <h2 className="editorial-heading text-2xl font-semibold">Marketplace</h2>
+              <button className="text-muted hover:text-text" onClick={() => setMarketplaceOpen(false)}>
+                Close
+              </button>
+            </header>
+            <iframe
+              title="AMP Marketplace"
+              src="http://localhost:4100"
+              className="min-h-0 flex-1 border-0 bg-bg"
+            />
+            <AppFooter
+              version={appVersion}
+              onAbout={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('about')
+              }}
+              onTos={() => {
+                setMarketplaceOpen(false)
+                setLegalPage('tos')
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       <Modal
         open={legalPage !== null}

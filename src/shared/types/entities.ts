@@ -33,6 +33,7 @@ export interface PromptDTO {
   content: string
   category: string
   tags: string[]
+  folder?: string | null
   favorite: boolean
   pinned: boolean
   createdAt: string
@@ -139,11 +140,20 @@ export interface MarketplaceTransferResult {
   reason?: string
 }
 
+export interface MarketplaceDeepLinkInstalledEvent {
+  kind: 'plugin' | 'theme'
+  id: string
+  name: string
+  enabled?: boolean
+  active?: boolean
+}
+
 export interface CreatePromptInput {
   title: string
   content: string
   category?: string
   tags?: string[]
+  folder?: string
   useCase?: string
   aiTarget?: string
   favorite?: boolean
@@ -160,6 +170,7 @@ export interface PromptListFilters {
   pinned?: boolean
   category?: string
   tag?: string
+  folder?: string
   limit?: number
   offset?: number
 }

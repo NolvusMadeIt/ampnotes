@@ -98,6 +98,8 @@ type ThemeBuilderToken =
   | '--surface-2'
   | '--text'
   | '--text-muted'
+  | '--icon'
+  | '--icon-muted'
   | '--border'
   | '--popover'
   | '--popover-foreground'
@@ -134,6 +136,8 @@ const THEME_COLOR_SECTIONS: readonly ThemeColorSection[] = [
       ['--surface-2', 'Secondary', 'Navigation hovers and soft panels'],
       ['--text', 'Foreground', 'Primary readable text'],
       ['--text-muted', 'Muted Foreground', 'Helper text and metadata'],
+      ['--icon', 'Icon', 'Primary tool and navigation icons'],
+      ['--icon-muted', 'Muted Icon', 'Secondary and inactive icons'],
       ['--border', 'Border', 'Dividers and quiet outlines']
     ]
   },
@@ -216,6 +220,8 @@ const DEFAULT_THEME_BUILDER = {
     '--surface-2': '#f0f2f5',
     '--text': '#101114',
     '--text-muted': '#606775',
+    '--icon': '#303844',
+    '--icon-muted': '#758091',
     '--border': '#d9dde5',
     '--popover': '#ffffff',
     '--popover-foreground': '#101114',
@@ -243,6 +249,8 @@ const DEFAULT_THEME_BUILDER = {
     '--surface-2': '#181b22',
     '--text': '#f4f6fb',
     '--text-muted': '#a4adbb',
+    '--icon': '#dfe6f3',
+    '--icon-muted': '#8e99aa',
     '--border': '#252a33',
     '--popover': '#151820',
     '--popover-foreground': '#f4f6fb',
@@ -402,6 +410,9 @@ export function SettingsDialog({
   isGroqKeyConfigured,
   onSignOut
 }: SettingsDialogProps) {
+  const [activeSection, setActiveSection] = useState<'general' | 'plugins' | 'themes'>(
+    section === 'plugins' || section === 'themes' ? section : 'general'
+  )
   const [apiKey, setApiKey] = useState('')
   const [fontScaleDraft, setFontScaleDraft] = useState(appearance.fontScale)
   const [pluginManifestJson, setPluginManifestJson] = useState('')
@@ -421,10 +432,17 @@ export function SettingsDialog({
     const active = marketplaceState.themes.find((item) => item.id === marketplaceState.activeThemeId)
     return active?.name ?? null
   }, [marketplaceState.activeThemeId, marketplaceState.themes])
+  const themePresetSelectValue = marketplaceState.activeThemeId
+    ? `theme:${marketplaceState.activeThemeId}`
+    : `preset:${appearance.themePreset}`
 
-  const showGeneral = section === 'general' || section === 'all'
-  const showPlugins = section === 'plugins' || section === 'all'
-  const showThemes = section === 'themes' || section === 'all'
+  useEffect(() => {
+    setActiveSection(section === 'plugins' || section === 'themes' ? section : 'general')
+  }, [section])
+
+  const showGeneral = activeSection === 'general'
+  const showPlugins = activeSection === 'plugins'
+  const showThemes = activeSection === 'themes'
   const builderColors = themeBuilder[builderMode]
   const activeTokenLabel = useMemo(() => {
     if (!activeBuilderToken) {
@@ -699,6 +717,22 @@ export function SettingsDialog({
 
   const body = (
     <div className="space-y-6">
+      <div className="flex flex-wrap gap-2 border-b border-line/20 pb-3">
+        {([
+          ['general', 'General'],
+          ['plugins', 'Plugins'],
+          ['themes', 'Customize Themes']
+        ] as const).map(([value, label]) => (
+          <Button
+            key={value}
+            size="sm"
+            variant={activeSection === value ? 'primary' : 'secondary'}
+            onClick={() => setActiveSection(value)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
       {showGeneral && (
         <>
           <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
@@ -723,7 +757,7 @@ export function SettingsDialog({
           <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
             <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
               Reading & Typography
-              <HelpTooltip text="Choose one of five fonts, set font size, and choose one of five built-in theme presets." />
+              <HelpTooltip text="Choose reading fonts, font size, and either a built-in preset or an installed custom theme." />
             </h3>
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
@@ -747,16 +781,33 @@ export function SettingsDialog({
                 <span className="mb-1 block font-medium">Theme preset</span>
                 <select
                   className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 outline-none focus:border-accent/10"
-                  value={appearance.themePreset}
+                  value={themePresetSelectValue}
                   onChange={async (event) => {
-                    await applyAppearance({ themePreset: event.target.value as ThemePresetOption })
+                    const value = event.target.value
+                    if (value.startsWith('theme:')) {
+                      await onSetActiveMarketplaceTheme(value.slice('theme:'.length))
+                      return
+                    }
+                    await onSetActiveMarketplaceTheme(null)
+                    await applyAppearance({ themePreset: value.replace('preset:', '') as ThemePresetOption })
                   }}
                 >
+                  <optgroup label="Built-in presets">
                   {PRESET_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={`preset:${option.value}`}>
                       {option.label}
                     </option>
                   ))}
+                  </optgroup>
+                  {marketplaceState.themes.length > 0 && (
+                    <optgroup label="Custom themes">
+                      {marketplaceState.themes.map((theme) => (
+                        <option key={theme.id} value={`theme:${theme.id}`}>
+                          {theme.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
             </div>

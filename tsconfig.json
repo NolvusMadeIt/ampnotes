@@ -17,8 +17,9 @@
       "@main/*": ["src/main/*"],
       "@preload/*": ["src/preload/*"],
       "@renderer/*": ["src/renderer/*"],
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["src/shared/*"],
+      "@renderer/assets/*": ["src/renderer/assets/*"]
     }
   },
-  "include": ["src", "electron.vite.config.ts", "tailwind.config.ts", "vitest.config.ts"]
+  "include": ["src", "src/renderer/assets", "electron.vite.config.ts", "tailwind.config.ts", "vitest.config.ts"]
 }

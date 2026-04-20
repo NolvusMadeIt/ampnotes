@@ -6,6 +6,19 @@ import Routes from './routes'
 
 function buildApiMock() {
   return {
+    app: {
+      getInfo: vi.fn().mockResolvedValue({ version: '0.1.1' }),
+      checkForUpdates: vi.fn().mockResolvedValue({
+        ok: true,
+        updateAvailable: false,
+        currentVersion: '0.1.1'
+      })
+    },
+    window: {
+      minimize: vi.fn(),
+      toggleMaximize: vi.fn(),
+      close: vi.fn()
+    },
     profile: {
       list: vi.fn().mockResolvedValue([]),
       getSession: vi.fn().mockResolvedValue(null),
@@ -94,6 +107,7 @@ function buildApiMock() {
         themes: [],
         activeThemeId: null
       }),
+      onDeepLinkInstalled: vi.fn().mockReturnValue(() => undefined),
       registerPlugin: vi.fn(),
       setPluginEnabled: vi.fn(),
       removePlugin: vi.fn(),
@@ -117,12 +131,12 @@ describe('Routes', () => {
     render(<Routes />)
 
     await waitFor(() => {
-      expect(screen.getByText('Adaptive Markdown Prompts')).toBeInTheDocument()
+      expect(screen.getByText('Welcome to AMP')).toBeInTheDocument()
     })
 
-    const input = screen.getByPlaceholderText('Display name')
+    const input = screen.getByPlaceholderText('Your display name')
     await userEvent.type(input, 'Nora')
-    await userEvent.click(screen.getByText('Create & Sign In'))
+    await userEvent.click(screen.getByText('Continue'))
 
     expect(apiMock.profile.createAndSignIn).toHaveBeenCalledWith('Nora')
   })

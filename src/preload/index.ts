@@ -6,6 +6,15 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
 }
 
 const api: ApiClient = {
+  app: {
+    getInfo: () => invoke('app.getInfo'),
+    checkForUpdates: () => invoke('app.checkForUpdates')
+  },
+  window: {
+    minimize: () => invoke('window.minimize'),
+    toggleMaximize: () => invoke('window.toggleMaximize'),
+    close: () => invoke('window.close')
+  },
   profile: {
     list: () => invoke('profile.list'),
     getSession: () => invoke('profile.getSession'),
@@ -88,7 +97,16 @@ const api: ApiClient = {
       invoke('marketplace.exportThemeManifest', { profileId, themeId }),
     setActiveTheme: (profileId, themeId) => invoke('marketplace.setActiveTheme', { profileId, themeId }),
     removeTheme: (profileId, themeId) => invoke('marketplace.removeTheme', { profileId, themeId }),
-    openThemeFolder: (profileId, themeId) => invoke('marketplace.openThemeFolder', { profileId, themeId })
+    openThemeFolder: (profileId, themeId) => invoke('marketplace.openThemeFolder', { profileId, themeId }),
+    onDeepLinkInstalled: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        callback(payload as Parameters<typeof callback>[0])
+      }
+      ipcRenderer.on('marketplace.deepLinkInstalled', listener)
+      return () => {
+        ipcRenderer.removeListener('marketplace.deepLinkInstalled', listener)
+      }
+    }
   }
 }
 

@@ -86,6 +86,26 @@ npm run rebuild:native
 - [ ] Docs updated (README and wiki pages if user-facing).
 - [ ] No debug-only UI left behind.
 
+
+## Release Checklist
+
+Maintainers should use this flow for desktop releases:
+
+```bash
+npm run typecheck
+npm run dist
+```
+
+Then create a GitHub Release with the installer and update metadata from `dist/`.
+
+Release assets should include:
+
+- `AMP-Setup-<version>.exe`
+- `AMP-Setup-<version>.exe.blockmap` when generated
+- `latest.yml` when generated
+
+Keep release notes clear enough for non-developers: what changed, what was fixed, and whether an update is recommended.
+
 ## Issue Reports
 
 When opening issues, include:
@@ -99,3 +119,4 @@ When opening issues, include:
 ## License
 
 By contributing, you agree your contributions are licensed under the project’s MIT license.
+

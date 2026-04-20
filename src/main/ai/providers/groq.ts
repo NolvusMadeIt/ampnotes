@@ -60,7 +60,7 @@ export class GroqProvider implements AIProvider {
           {
             role: 'system',
             content:
-              'You improve prompts for quality and precision. Keep user intent intact and output only final prompt text.'
+              'You improve prompts by making them clearer, more specific, and more effective. Return the improved prompt text only, without any extra commentary.'
           },
           {
             role: 'user',
@@ -109,7 +109,7 @@ export class GroqProvider implements AIProvider {
           {
             role: 'system',
             content:
-              'You validate prompt quality and sharing-readiness. Respond with strict JSON only: {"verdict":"pass|needs_work","notes":"short actionable feedback"}'
+              'You are a helpful prompt coach. A prompt PASSES if it has a clear task and basic structure. Return {"verdict":"pass","notes":"brief tip"} for good prompts. Return {"verdict":"needs_work","notes":"short action"} only for unclear prompts. If category/useCase/aiTarget are missing, note "Add category, use case, and AI target before sharing." Be brief.'
           },
           {
             role: 'user',
@@ -122,7 +122,7 @@ export class GroqProvider implements AIProvider {
               'Prompt content:',
               request.content,
               '',
-              'Validate clarity, constraints, output formatting, and reusability.'
+              'Is this prompt clear enough to be shared and used by others?'
             ].join('\n')
           }
         ]
@@ -141,8 +141,22 @@ export class GroqProvider implements AIProvider {
     }
 
     const parsed = parseValidationJson(raw)
-    const verdict = parsed?.verdict === 'needs_work' ? 'needs_work' : 'pass'
-    const notes = parsed?.notes?.trim() || 'Prompt checked with Groq.'
+
+    let verdict: 'pass' | 'needs_work' = 'pass'
+    let notes = 'Looks good!'
+
+    if (parsed) {
+      verdict = parsed.verdict === 'needs_work' ? 'needs_work' : 'pass'
+      notes = parsed.notes?.trim() || (verdict === 'pass' ? 'Looks good!' : 'Needs some work.')
+    } else {
+      const lowerRaw = raw.toLowerCase()
+      if (lowerRaw.includes('needs_work') || lowerRaw.includes('needs improvement') || lowerRaw.includes('not clear')) {
+        verdict = 'needs_work'
+        notes = 'Review and improve the prompt.'
+      } else {
+        notes = 'Prompt validated.'
+      }
+    }
 
     return {
       providerId: this.id,

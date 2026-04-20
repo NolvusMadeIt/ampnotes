@@ -22,6 +22,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#f1f4f8',
       '--text': '#11151d',
       '--text-muted': '#5d687a',
+      '--icon': '#2f3b4f',
+      '--icon-muted': '#748094',
       '--border': '#a4afc0',
       '--accent': '#4d7bff'
     },
@@ -31,6 +33,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#141a26',
       '--text': '#e7edf8',
       '--text-muted': '#99a8bc',
+      '--icon': '#d7dfed',
+      '--icon-muted': '#8797ad',
       '--border': '#1d2634',
       '--accent': '#6b8dff'
     }
@@ -42,6 +46,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#eff4fb',
       '--text': '#11151d',
       '--text-muted': '#5b6b82',
+      '--icon': '#2f4159',
+      '--icon-muted': '#71829a',
       '--border': '#9eb0c7',
       '--accent': '#3c7cdd'
     },
@@ -51,6 +57,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#132334',
       '--text': '#e4eefb',
       '--text-muted': '#97a9c2',
+      '--icon': '#d5e4f6',
+      '--icon-muted': '#8499b5',
       '--border': '#1b3146',
       '--accent': '#4f8fe3'
     }
@@ -62,6 +70,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#eceff3',
       '--text': '#12151b',
       '--text-muted': '#5f6673',
+      '--icon': '#303640',
+      '--icon-muted': '#747d8b',
       '--border': '#9fa8b5',
       '--accent': '#5d6b80'
     },
@@ -71,6 +81,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#1c2129',
       '--text': '#e8ebf2',
       '--text-muted': '#9da6b3',
+      '--icon': '#d9dee8',
+      '--icon-muted': '#8c96a6',
       '--border': '#252b35',
       '--accent': '#7e8da5'
     }
@@ -82,6 +94,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#eaf2ec',
       '--text': '#131a14',
       '--text-muted': '#5e6e61',
+      '--icon': '#314638',
+      '--icon-muted': '#748576',
       '--border': '#9fb2a3',
       '--accent': '#3f8a5b'
     },
@@ -91,6 +105,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#182a20',
       '--text': '#e5efe7',
       '--text-muted': '#9fb4a5',
+      '--icon': '#d8e8dc',
+      '--icon-muted': '#8da394',
       '--border': '#223128',
       '--accent': '#56a879'
     }
@@ -102,6 +118,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#f2e9dc',
       '--text': '#1a1510',
       '--text-muted': '#6f6253',
+      '--icon': '#4a3b2e',
+      '--icon-muted': '#857466',
       '--border': '#bea98f',
       '--accent': '#ae7446'
     },
@@ -111,6 +129,8 @@ const PRESET_OVERRIDES: Record<
       '--surface-2': '#2b2219',
       '--text': '#eee3d5',
       '--text-muted': '#b8a58d',
+      '--icon': '#e6d8c6',
+      '--icon-muted': '#a89178',
       '--border': '#362b20',
       '--accent': '#c98854'
     }

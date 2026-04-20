@@ -20,6 +20,8 @@ interface SessionRow {
   signed_out_at: string | null
 }
 
+const SESSION_TTL_MS = 48 * 60 * 60 * 1000
+
 function toProfileDTO(row: ProfileRow): ProfileDTO {
   return {
     id: row.id,
@@ -119,7 +121,28 @@ export class ProfileRepo {
         'SELECT * FROM sessions WHERE active = 1 ORDER BY signed_in_at DESC LIMIT 1'
       )
       .get() as SessionRow | undefined
-    return row ? toSessionDTO(row) : null
+    if (!row) {
+      return null
+    }
+
+    const signedInAtMs = Date.parse(row.signed_in_at)
+    const isExpired =
+      !Number.isFinite(signedInAtMs) || Date.now() - signedInAtMs > SESSION_TTL_MS
+
+    if (isExpired) {
+      const now = new Date().toISOString()
+      this.db
+        .prepare(
+          `UPDATE sessions
+           SET active = 0,
+               signed_out_at = COALESCE(signed_out_at, ?)
+           WHERE id = ?`
+        )
+        .run(now, row.id)
+      return null
+    }
+
+    return toSessionDTO(row)
   }
 
   updateTheme(profileId: string, theme: ThemeMode): ProfileDTO {

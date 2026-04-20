@@ -1,0 +1,8 @@
+.next
+node_modules
+.vercel
+.env
+.env.local
+data/submissions.json
+
+*.tsbuildinfo

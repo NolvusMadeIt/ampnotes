@@ -1,6 +1,6 @@
 {
   "name": "ampnotes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AMP, All My Prompts: a desktop-first prompt notebook for writing, validating, sharing, and extending prompts.",
   "main": "out/main/index.js",
   "author": "NolvusMadeIt",
@@ -11,6 +11,8 @@
     "dev": "npm run rebuild:native && electron-vite dev",
     "dev:electron": "npm run rebuild:native && electron-vite dev",
     "build": "electron-vite build",
+    "pack:win": "npm run build && electron-builder --win nsis --x64",
+    "dist": "npm run pack:win",
     "preview": "electron-vite preview",
     "rebuild:native": "electron-rebuild -f",
     "rebuild:node": "npm rebuild better-sqlite3",
@@ -21,6 +23,7 @@
   "dependencies": {
     "better-sqlite3": "^12.2.0",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.3",
     "keytar": "^7.9.0",
     "lucide-react": "^1.8.0",
     "react": "^19.2.0",
@@ -59,13 +62,33 @@
       "out/**",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "src/assets/imgs/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
     "directories": {
       "buildResources": "build"
     },
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "icon": "src/assets/imgs/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AMP"
+    },
+    "artifactName": "AMP-Setup-${version}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "NolvusMadeIt",
+      "repo": "ampnotes"
     }
   }
 }

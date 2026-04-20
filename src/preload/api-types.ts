@@ -9,6 +9,7 @@ import type {
   InstalledThemeDTO,
   MarketplaceFolderResult,
   MarketplaceTransferResult,
+  MarketplaceDeepLinkInstalledEvent,
   AppearanceSettingsDTO,
   MarketplaceStateDTO,
   ProfileDTO,
@@ -26,6 +27,21 @@ import type {
 } from '@shared/types'
 
 export interface ApiClient {
+  app: {
+    getInfo: () => Promise<{ version: string }>
+    checkForUpdates: () => Promise<{
+      ok: boolean
+      updateAvailable: boolean
+      currentVersion: string
+      latestVersion?: string
+      reason?: string
+    }>
+  }
+  window: {
+    minimize: () => Promise<void>
+    toggleMaximize: () => Promise<void>
+    close: () => Promise<void>
+  }
   profile: {
     list: () => Promise<ProfileDTO[]>
     getSession: () => Promise<{ profile: ProfileDTO; session: SessionDTO } | null>
@@ -118,5 +134,6 @@ export interface ApiClient {
     setActiveTheme: (profileId: string, themeId: string | null) => Promise<string | null>
     removeTheme: (profileId: string, themeId: string) => Promise<{ ok: boolean }>
     openThemeFolder: (profileId: string, themeId: string) => Promise<MarketplaceFolderResult>
+    onDeepLinkInstalled: (callback: (event: MarketplaceDeepLinkInstalledEvent) => void) => () => void
   }
 }

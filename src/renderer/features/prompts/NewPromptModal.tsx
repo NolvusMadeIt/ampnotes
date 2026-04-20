@@ -35,6 +35,7 @@ interface DraftState {
   title: string
   category: string
   tags: string[]
+  folder: string
   useCase: string
   aiTarget: string
   content: string
@@ -44,6 +45,7 @@ const INITIAL_DRAFT: DraftState = {
   title: '',
   category: 'General',
   tags: [],
+  folder: '',
   useCase: '',
   aiTarget: '',
   content: ''
@@ -285,12 +287,24 @@ export function NewPromptModal({
         </div>
 
         {showAdvanced && (
-          <div className="space-y-3 rounded-xl border border-line/20 bg-surface2/60 p-3">
+<div className="space-y-3 rounded-xl border border-line/20 bg-surface2/60 p-3">
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
                 <span className="mb-1 inline-flex items-center gap-1.5 font-medium">
+                  Folder
+                  <HelpTooltip text="Organize prompts into folders. Create from sidebar or leave empty." />
+                </span>
+                <input
+                  className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 text-sm outline-none focus:border-accent/10"
+                  placeholder="e.g. Work, Personal, Project X"
+                  value={draft.folder}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, folder: event.target.value }))}
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 inline-flex items-center gap-1.5 font-medium">
                   Use case
-                  <HelpTooltip text="Required for sharing/exporting. Describe where this prompt is used." />
+                  <HelpTooltip text="Where will you use this prompt? Example: Writing weekly reports, debugging code, creating emails. Required for sharing." />
                 </span>
                 <input
                   className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 text-sm outline-none focus:border-accent/10"
@@ -299,10 +313,13 @@ export function NewPromptModal({
                   onChange={(event) => setDraft((prev) => ({ ...prev, useCase: event.target.value }))}
                 />
               </label>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-sm">
                 <span className="mb-1 inline-flex items-center gap-1.5 font-medium">
                   AI target
-                  <HelpTooltip text="Required for sharing/exporting. Example: ChatGPT, Claude, Gemini." />
+                  <HelpTooltip text="Which AI model is this prompt for? Example: ChatGPT, Claude, Gemini, Grok. Required for sharing." />
                 </span>
                 <input
                   className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 text-sm outline-none focus:border-accent/10"
@@ -410,11 +427,12 @@ export function NewPromptModal({
                 }
                 setValidationMessage(null)
 
-                await onCreate({
+await onCreate({
                   title: draft.title.trim(),
                   content: contentToSave,
                   category: draft.category.trim() || 'General',
                   tags: draft.tags,
+                  folder: draft.folder.trim() || undefined,
                   useCase: draft.useCase.trim() || undefined,
                   aiTarget: draft.aiTarget.trim() || undefined
                 })

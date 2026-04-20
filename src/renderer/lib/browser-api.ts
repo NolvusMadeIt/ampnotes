@@ -49,6 +49,7 @@ interface BrowserDb {
 }
 
 const STORAGE_KEY = 'ampnotes.browser.db.v1'
+const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
@@ -95,6 +96,14 @@ function normalizeAppearance(value: unknown): AppearanceSettingsDTO {
 
 function nowIso() {
   return new Date().toISOString()
+}
+
+function isSessionExpired(session: SessionDTO): boolean {
+  const signedInAtMs = Date.parse(session.signedInAt)
+  if (!Number.isFinite(signedInAtMs)) {
+    return true
+  }
+  return Date.now() - signedInAtMs > SESSION_TTL_MS
 }
 
 function createId(prefix: string) {
@@ -672,6 +681,20 @@ function pickFileText(): Promise<string | null> {
 
 export function createBrowserApiClient(): ApiClient {
   return {
+    app: {
+      getInfo: async () => ({ version: '0.1.1' }),
+      checkForUpdates: async () => ({
+        ok: true,
+        updateAvailable: false,
+        currentVersion: '0.1.1',
+        reason: 'Desktop update checks run in the packaged Electron app.'
+      })
+    },
+    window: {
+      minimize: async () => undefined,
+      toggleMaximize: async () => undefined,
+      close: async () => undefined
+    },
     profile: {
       list: async () =>
         withDb((db) =>
@@ -683,12 +706,27 @@ export function createBrowserApiClient(): ApiClient {
         ),
       getSession: async () =>
         withDb((db) => {
-          const activeSession = [...db.sessions]
+          const activeSessions = [...db.sessions]
             .sort((a, b) => new Date(b.signedInAt).getTime() - new Date(a.signedInAt).getTime())
-            .find((session) => session.active)
+            .filter((session) => session.active)
+
+          if (activeSessions.length === 0) {
+            return null
+          }
+
+          const now = nowIso()
+          const activeSession = activeSessions.find((session) => !isSessionExpired(session))
+
+          db.sessions = db.sessions.map((session) =>
+            session.active && isSessionExpired(session)
+              ? { ...session, active: false, signedOutAt: session.signedOutAt ?? now }
+              : session
+          )
+
           if (!activeSession) {
             return null
           }
+
           ensureProfileStarterPrompts(db, activeSession.profileId)
           const profile = db.profiles.find((item) => item.id === activeSession.profileId)
           if (!profile) {
@@ -1574,7 +1612,8 @@ export function createBrowserApiClient(): ApiClient {
       openThemeFolder: async () => ({
         ok: false,
         reason: 'Theme folders are available in the desktop app.'
-      })
+      }),
+      onDeepLinkInstalled: () => () => {}
     }
   }
 }
