@@ -12,6 +12,18 @@ AMP runs as one primary workspace with:
 2. A middle lane for filtered prompt lists, drag organization, and quick context.
 3. A right focus panel for reading, editing, validating, sharing, and converting prompts into templates.
 
+## Visual Overview
+
+![AMP showcase collage](./images/showcase-collage.png)
+
+### Key Screens
+
+![All Pages (Dark)](./images/home-dark.png)
+![Page Editor (Light)](./images/editor-light.png)
+![Read View (Light)](./images/read-view-light.png)
+![Improve Prompt Modal](./images/improve-modal-light.png)
+![Templates (Dark)](./images/templates-dark.png)
+
 ## Primary Workflows
 
 - Create and edit prompts.
@@ -28,6 +40,7 @@ AMP runs as one primary workspace with:
 - General: theme mode, reading typography, Groq key, update checks, account actions.
 - Plugins: manifest editor, installed plugins, local folder import, file export, folder open actions.
 - Customize Themes: visual theme builder, installed themes, import/export, folder open actions.
+- Admin: creator profile, socials, avatar URL, local admin PIN setup/verify/clear.
 
 ## Release And Update Model
 

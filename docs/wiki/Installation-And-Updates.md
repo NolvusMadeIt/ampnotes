@@ -24,6 +24,12 @@ npm run dist
 
 Generated installer files are written to `dist/`.
 
+For current release packaging (0.1.2), expected assets include:
+
+- `AMP-Setup-0.1.2.exe`
+- `AMP-Setup-0.1.2.exe.blockmap`
+- `latest.yml`
+
 ## Native Module Repair
 
 If Electron reports that `better-sqlite3` was compiled for the wrong Node version, rebuild native modules:
@@ -42,7 +48,8 @@ npm run rebuild:node
 
 1. Update `package.json` version.
 2. Run `npm run typecheck`.
-3. Run `npm run dist`.
-4. Commit and push changes.
-5. Create a GitHub release tag such as `v0.1.1`.
-6. Upload the installer and update metadata from `dist/`.
+3. Run `npm test`.
+4. Run `npm run dist`.
+5. Commit and push changes.
+6. Create a GitHub release tag such as `v0.1.2`.
+7. Upload the installer and update metadata from `dist/`.

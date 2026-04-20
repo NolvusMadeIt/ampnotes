@@ -29,7 +29,9 @@ AMP treats themes and plugins as first-class, file-based assets.
 - Permissions are allow-listed.
 - Entry paths are sanitized.
 - Homepages must use HTTPS when provided.
+- Optional `credits` and `socials` metadata can be stored in plugin manifests for attribution.
 - Imported plugin code should remain sandboxed and reviewable.
+- Import payloads are scanned for suspicious markers before AMP accepts them.
 
 ## Theme Workflow
 
@@ -54,6 +56,7 @@ Each color token is tied to visible preview cards so users can see where the tok
 - Load an existing manifest back into the builder for edits.
 - Custom/imported themes appear in Settings > General > Reading & Typography > Theme preset.
 - AMP honors custom theme font tokens when a marketplace theme is active.
+- Optional `credits` and `socials` metadata can be included in theme manifests for attribution.
 
 ### Import/Export Options
 
@@ -67,3 +70,8 @@ Each color token is tied to visible preview cards so users can see where the tok
 ## Marketplace Prototype
 
 The repo includes marketplace work in both `docs/` and `marketplace/`. The desktop app can install marketplace packages through deep links or local folder imports.
+
+## Related Visuals
+
+![Templates (Dark)](./images/templates-dark.png)
+![Page Editor (Light)](./images/editor-light.png)

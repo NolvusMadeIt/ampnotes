@@ -11,16 +11,43 @@ AMP is a desktop-first prompt operations app for writing, validating, organizing
 - Prompt lanes, tag folders, favorites, recent usage, templates, and searchable organization.
 - Groq-powered prompt improvement and validation when a Groq API key is configured.
 - Share/import/export flows with validation gates so incomplete prompts do not ship by accident.
+- Admin profile support for creator credits, socials, avatar URL, and local admin PIN controls.
 - File-backed plugin and theme manifests that can be pasted, imported from folders, imported from marketplace URLs, exported, and edited again.
 - Marketplace-ready deep links for installing themes and plugins from AMP Marketplace pages.
 - Windows installer support with GitHub Releases based update checks.
+
+## Showcase
+
+![AMP showcase collage](./docs/wiki/images/showcase-collage.png)
+
+### Core Screens
+
+**All Pages (Dark)**
+
+![All Pages Dark](./docs/wiki/images/home-dark.png)
+
+**Page Editor (Light)**
+
+![Page Editor Light](./docs/wiki/images/editor-light.png)
+
+**Read View (Light)**
+
+![Read View Light](./docs/wiki/images/read-view-light.png)
+
+**Improve Prompt Modal**
+
+![Improve Prompt Modal](./docs/wiki/images/improve-modal-light.png)
+
+**Templates (Dark)**
+
+![Templates Dark](./docs/wiki/images/templates-dark.png)
 
 ## Download And Updates
 
 The Windows app is distributed as an NSIS installer from GitHub Releases.
 
 - Installer artifact: `AMP-Setup-<version>.exe`
-- Current app version: `0.1.1`
+- Current app version: `0.1.2`
 - Release feed: `https://github.com/NolvusMadeIt/ampnotes/releases`
 
 AMP checks for new GitHub releases when the packaged desktop app starts. Users can also run **Check updates** from the top navigation. If a new release exists, AMP prompts before opening/downloading the update.
@@ -88,6 +115,7 @@ Free marketplace submissions can be staged in the repository. Paid assets can be
 ## Security Model
 
 - Imported manifests are treated as untrusted input.
+- Prompt/theme/plugin imports run a threat marker scan before acceptance.
 - Plugin permissions are allow-listed.
 - Plugin entry paths are sanitized.
 - Theme token keys and values are sanitized.
