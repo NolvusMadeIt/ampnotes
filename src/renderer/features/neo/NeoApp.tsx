@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import ampLogoUrl from '@renderer/assets/imgs/amp_logo.png'
 import {
   ArrowUpRight,
@@ -32,6 +32,7 @@ import { TemplatePanel } from '@renderer/features/templates/TemplatePanel'
 
 type NeoLane = 'all' | 'ready' | 'drafts' | 'favorites' | 'recent' | 'templates' | `folder:${string}`
 type NeoFocus = 'browse' | 'read' | 'edit'
+export type NeoPage = 'workspace' | 'marketplace' | 'settings' | 'about' | 'tos'
 
 interface NeoAppProps {
   profileId: string
@@ -44,10 +45,12 @@ interface NeoAppProps {
   latestUpdated: string | null
   selectedPromptId: string | null
   validatingPromptId: string | null
-  marketplaceOpen: boolean
+  page: NeoPage
   marketplaceUrl: string
   marketplaceLoadKey: number
   marketplaceStatus: 'loading' | 'ready' | 'error'
+  settingsView?: ReactNode
+  legalView?: ReactNode
   onSelectPromptId: (id: string | null) => void
   onSelectTag: (tag: string | null) => void
   onCreatePrompt: () => void
@@ -176,10 +179,12 @@ export function NeoApp({
   latestUpdated,
   selectedPromptId,
   validatingPromptId,
-  marketplaceOpen,
+  page,
   marketplaceUrl,
   marketplaceLoadKey,
   marketplaceStatus,
+  settingsView,
+  legalView,
   onSelectPromptId,
   onSelectTag,
   onCreatePrompt,
@@ -477,6 +482,9 @@ export function NeoApp({
   const draftCount = prompts.length - readyCount
   const totalPromptCount = prompts.length
   const allFoldersCollapsed = folderGroups.length > 0 && folderGroups.every((group) => collapsedFolders[group.name])
+  const marketplaceOpen = page === 'marketplace'
+  const settingsOpen = page === 'settings'
+  const legalOpen = page === 'about' || page === 'tos'
 
   const contextPrompt = useMemo(
     () => (promptMenu ? prompts.find((item) => item.id === promptMenu.promptId) ?? null : null),
@@ -553,7 +561,7 @@ export function NeoApp({
     <div className="border-t border-line/20 px-3 py-3">
       <p className="mono-meta mb-1 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">App</p>
       <div className="space-y-0.5">
-        {marketplaceOpen ? (
+        {page !== 'workspace' ? (
           <button type="button" className={navRowClass(false)} onClick={onOpenWorkspace}>
             <FolderOpen size={14} />
             <span className="truncate">Workspace</span>
@@ -571,7 +579,7 @@ export function NeoApp({
           <ChevronsUpDown size={14} />
           <span className="truncate">Check updates</span>
         </button>
-        <button type="button" className={navRowClass(false)} onClick={onOpenSettings}>
+        <button type="button" className={navRowClass(settingsOpen)} onClick={onOpenSettings}>
           <Settings2 size={14} />
           <span className="truncate">Settings</span>
         </button>
@@ -662,6 +670,35 @@ export function NeoApp({
                 </div>
               </div>
             ) : null}
+          </section>
+        </main>
+      ) : settingsOpen || legalOpen ? (
+        <main className="grid min-h-0 flex-1 gap-[var(--panel-gap)] p-[var(--panel-padding)] xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
+          <aside className="neo-panel flex min-h-0 flex-col overflow-hidden border border-line/20 bg-surface">
+            <div className="border-b border-line/20 px-4 py-4">
+              <div className="flex items-center gap-3">
+                <img src={ampLogoUrl} alt="AMP Logo" className="w-12" />
+                <div>
+                  <p className="mono-meta text-xs uppercase tracking-[0.22em] text-muted">AMP</p>
+                  <h1 className="editorial-heading truncate text-[1.5rem] font-semibold leading-tight text-text">
+                    {settingsOpen ? 'Settings' : page === 'about' ? 'About AMP' : 'Terms'}
+                  </h1>
+                </div>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-muted">
+                {settingsOpen
+                  ? 'Manage your workspace, marketplace assets, themes, plugins, and admin controls.'
+                  : 'Reference pages live inside the same AMP workspace chrome.'}
+              </p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden" />
+            {sideActions}
+          </aside>
+
+          <section className="neo-panel min-h-0 overflow-hidden border border-line/20 bg-surface">
+            <div className="scroll-y h-full min-h-0 overflow-y-auto p-5">
+              {settingsOpen ? settingsView : legalView}
+            </div>
           </section>
         </main>
       ) : (

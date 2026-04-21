@@ -1573,7 +1573,7 @@ export function SettingsDialog({
               <HelpTooltip text="Create, edit, activate, and share themes." />
             </h3>
             <p className="mt-1 text-sm text-muted">
-              Import from marketplace URL, paste JSON, or load a local folder, then use the builder to refine visuals.
+              Import from a marketplace code, paste JSON, or load a local folder, then use the builder to refine visuals.
             </p>
             <Button className="mt-3" size="sm" variant="secondary" onClick={() => setActiveSection('themes')}>
               Back to Installed Themes
