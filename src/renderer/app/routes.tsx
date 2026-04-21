@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthView } from '@renderer/features/auth/AuthView'
-import { NeoApp, type NeoPage } from '@renderer/features/neo/NeoApp'
+import { NeoApp, type MarketplaceFiltersState, type NeoPage } from '@renderer/features/neo/NeoApp'
 import { AboutPage } from '@renderer/features/legal/AboutPage'
 import { TermsOfServicePage } from '@renderer/features/legal/TermsOfServicePage'
 import { NewPromptModal } from '@renderer/features/prompts/NewPromptModal'
@@ -44,19 +44,35 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   themePreset: 'midnight'
 }
 
+const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
+  q: '',
+  kind: 'all',
+  tier: 'all',
+  sort: 'popular',
+  technology: 'all'
+}
+
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APP_VERSION = '0.1.2'
 
 function buildMarketplaceUrl(
   theme: ThemeMode,
   appearance: AppearanceSettingsDTO,
-  activeMarketplaceThemeId?: string
+  activeMarketplaceThemeId: string | undefined,
+  filters: MarketplaceFiltersState
 ): string {
   try {
     const url = new URL(MARKETPLACE_URL)
     url.searchParams.set('embedded', '1')
     url.searchParams.set('ampTheme', resolveTheme(theme))
     url.searchParams.set('ampPreset', appearance.themePreset)
+    url.searchParams.set('kind', filters.kind)
+    url.searchParams.set('tier', filters.tier)
+    url.searchParams.set('sort', filters.sort)
+    url.searchParams.set('technology', filters.technology)
+    if (filters.q.trim()) {
+      url.searchParams.set('q', filters.q.trim())
+    }
     if (activeMarketplaceThemeId) {
       url.searchParams.set('activeThemeId', activeMarketplaceThemeId)
     }
@@ -89,6 +105,8 @@ export default function Routes() {
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [marketplaceLoadKey, setMarketplaceLoadKey] = useState(0)
   const [marketplaceStatus, setMarketplaceStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [marketplaceFilters, setMarketplaceFilters] =
+    useState<MarketplaceFiltersState>(DEFAULT_MARKETPLACE_FILTERS)
 
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineConfigured, setRefineConfigured] = useState(false)
@@ -147,8 +165,13 @@ export default function Routes() {
   }, [activeMarketplaceTheme?.tokens, appearance, theme])
 
   const marketplaceUrl = useMemo(() => {
-    return buildMarketplaceUrl(theme, appearance, activeMarketplaceTheme?.id)
-  }, [activeMarketplaceTheme?.id, appearance.themePreset, theme])
+    return buildMarketplaceUrl(theme, appearance, activeMarketplaceTheme?.id, marketplaceFilters)
+  }, [activeMarketplaceTheme?.id, appearance.themePreset, marketplaceFilters, theme])
+
+  const handleMarketplaceFiltersChange = useCallback((filters: MarketplaceFiltersState) => {
+    setMarketplaceStatus('loading')
+    setMarketplaceFilters(filters)
+  }, [])
 
   const openMarketplace = useCallback(() => {
     setMarketplaceStatus('loading')
@@ -1141,6 +1164,7 @@ export default function Routes() {
         marketplaceUrl={marketplaceUrl}
         marketplaceLoadKey={marketplaceLoadKey}
         marketplaceStatus={marketplaceStatus}
+        marketplaceFilters={marketplaceFilters}
         settingsView={settingsPage}
         legalView={legalView}
         onSelectPromptId={setSelectedPromptId}
@@ -1167,6 +1191,7 @@ export default function Routes() {
         onRetryMarketplace={retryMarketplace}
         onMarketplaceLoad={() => setMarketplaceStatus('ready')}
         onMarketplaceError={() => setMarketplaceStatus('error')}
+        onMarketplaceFiltersChange={handleMarketplaceFiltersChange}
         onCheckForUpdates={handleCheckForUpdates}
         onCopyPrompt={handleCopy}
         onSavePrompt={handleSavePrompt}

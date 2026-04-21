@@ -33,6 +33,17 @@ import { TemplatePanel } from '@renderer/features/templates/TemplatePanel'
 type NeoLane = 'all' | 'ready' | 'drafts' | 'favorites' | 'recent' | 'templates' | `folder:${string}`
 type NeoFocus = 'browse' | 'read' | 'edit'
 export type NeoPage = 'workspace' | 'marketplace' | 'settings' | 'about' | 'tos'
+export type MarketplaceKindFilter = 'all' | 'theme' | 'plugin'
+export type MarketplaceTierFilter = 'all' | 'free' | 'paid'
+export type MarketplaceSortFilter = 'popular' | 'newest'
+
+export interface MarketplaceFiltersState {
+  q: string
+  kind: MarketplaceKindFilter
+  tier: MarketplaceTierFilter
+  sort: MarketplaceSortFilter
+  technology: string
+}
 
 interface NeoAppProps {
   profileId: string
@@ -49,6 +60,7 @@ interface NeoAppProps {
   marketplaceUrl: string
   marketplaceLoadKey: number
   marketplaceStatus: 'loading' | 'ready' | 'error'
+  marketplaceFilters: MarketplaceFiltersState
   settingsView?: ReactNode
   legalView?: ReactNode
   onSelectPromptId: (id: string | null) => void
@@ -63,6 +75,7 @@ interface NeoAppProps {
   onRetryMarketplace: () => void
   onMarketplaceLoad: () => void
   onMarketplaceError: () => void
+  onMarketplaceFiltersChange: (filters: MarketplaceFiltersState) => void
   onCheckForUpdates: () => void
   onCopyPrompt: (prompt: PromptDTO) => Promise<void>
   onSavePrompt: (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => Promise<void>
@@ -76,6 +89,17 @@ interface NeoAppProps {
   onUpdateTemplate: (input: { id: string; title: string; content: string; category?: string; tags?: string[] }) => Promise<void>
   onDeleteTemplate: (template: TemplateDTO) => Promise<void>
 }
+
+const marketplacePopularSearches = [
+  'free themes',
+  'prompt plugins',
+  'dark themes',
+  'export tools',
+  'admin workflow',
+  'paid plugins'
+]
+
+const marketplaceTechnologies = ['AMP Theme API', 'AMP Plugin API', 'TypeScript', 'CSS variables']
 
 interface NeoEditorState {
   title: string
@@ -183,6 +207,7 @@ export function NeoApp({
   marketplaceUrl,
   marketplaceLoadKey,
   marketplaceStatus,
+  marketplaceFilters,
   settingsView,
   legalView,
   onSelectPromptId,
@@ -197,6 +222,7 @@ export function NeoApp({
   onRetryMarketplace,
   onMarketplaceLoad,
   onMarketplaceError,
+  onMarketplaceFiltersChange,
   onCheckForUpdates,
   onCopyPrompt,
   onSavePrompt,
@@ -214,6 +240,7 @@ export function NeoApp({
   const [focus, setFocus] = useState<NeoFocus>('browse')
   const [search, setSearch] = useState('')
   const [projectSearch, setProjectSearch] = useState('')
+  const [marketplaceSearchDraft, setMarketplaceSearchDraft] = useState(marketplaceFilters.q)
   const [showProjectFilter, setShowProjectFilter] = useState(false)
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
@@ -231,6 +258,10 @@ export function NeoApp({
   const projectsCollapsedStorageKey = `ampnotes.neo.projects-collapsed.v1:${profileId}`
   const tagsSectionCollapsedStorageKey = `ampnotes.neo.tags-section-collapsed.v1:${profileId}`
   const tagFolderStorageKey = `ampnotes.neo.tag-folders.v1:${profileId}`
+
+  useEffect(() => {
+    setMarketplaceSearchDraft(marketplaceFilters.q)
+  }, [marketplaceFilters.q])
 
   useEffect(() => {
     setHydratedStorageKey(null)
@@ -486,6 +517,28 @@ export function NeoApp({
   const settingsOpen = page === 'settings'
   const legalOpen = page === 'about' || page === 'tos'
 
+  function updateMarketplaceFilters(updates: Partial<MarketplaceFiltersState>): void {
+    onMarketplaceFiltersChange({
+      ...marketplaceFilters,
+      ...updates
+    })
+  }
+
+  function applyMarketplaceSearch(): void {
+    updateMarketplaceFilters({ q: marketplaceSearchDraft.trim() })
+  }
+
+  function clearMarketplaceFilters(): void {
+    setMarketplaceSearchDraft('')
+    onMarketplaceFiltersChange({
+      q: '',
+      kind: 'all',
+      tier: 'all',
+      sort: 'popular',
+      technology: 'all'
+    })
+  }
+
   const contextPrompt = useMemo(
     () => (promptMenu ? prompts.find((item) => item.id === promptMenu.promptId) ?? null : null),
     [promptMenu, prompts]
@@ -587,6 +640,131 @@ export function NeoApp({
     </div>
   )
 
+  const marketplaceRailControls = (
+    <div className="scroll-y min-h-0 flex-1 overflow-y-auto px-3 py-3">
+      <div className="space-y-4">
+        <section>
+          <p className="mono-meta mb-2 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">Search</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 rounded-md border border-line/20 bg-surface2 px-2">
+              <Search size={14} className="shrink-0 text-muted" />
+              <input
+                value={marketplaceSearchDraft}
+                onChange={(event) => setMarketplaceSearchDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    applyMarketplaceSearch()
+                  }
+                }}
+                placeholder="Search assets..."
+                className="h-9 min-w-0 flex-1 border-none bg-transparent px-1 text-sm outline-none"
+              />
+            </div>
+            <Button className="w-full justify-center" onClick={applyMarketplaceSearch}>
+              Search
+            </Button>
+          </div>
+        </section>
+
+        <section>
+          <p className="mono-meta mb-2 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">Popular</p>
+          <div className="grid grid-cols-1 gap-1">
+            {marketplacePopularSearches.map((searchTerm) => (
+              <button
+                key={searchTerm}
+                type="button"
+                className={navSubRowClass(marketplaceFilters.q === searchTerm)}
+                onClick={() => {
+                  setMarketplaceSearchDraft(searchTerm)
+                  updateMarketplaceFilters({ q: searchTerm })
+                }}
+              >
+                <span className="truncate">{searchTerm}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <p className="mono-meta mb-2 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">Filters</p>
+          <div className="space-y-3">
+            <label className="block text-xs font-semibold text-muted">
+              Sort
+              <select
+                value={marketplaceFilters.sort}
+                onChange={(event) =>
+                  updateMarketplaceFilters({ sort: event.target.value as MarketplaceSortFilter })
+                }
+                className="mt-1 h-9 w-full rounded-md border border-line/20 bg-surface2 px-2 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="popular">Popular</option>
+                <option value="newest">Newest</option>
+              </select>
+            </label>
+
+            <div>
+              <span className="block text-xs font-semibold text-muted">Type</span>
+              <div className="mt-1 grid grid-cols-3 overflow-hidden rounded-md border border-line/20 bg-surface2">
+                {(['all', 'theme', 'plugin'] as MarketplaceKindFilter[]).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className={`h-9 text-xs font-semibold transition-colors ${
+                      marketplaceFilters.kind === kind ? 'bg-accent text-accentContrast' : 'text-muted hover:text-text'
+                    }`}
+                    onClick={() => updateMarketplaceFilters({ kind })}
+                  >
+                    {kind === 'all' ? 'All' : kind === 'theme' ? 'Themes' : 'Plugins'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block text-xs font-semibold text-muted">
+              Price
+              <select
+                value={marketplaceFilters.tier}
+                onChange={(event) =>
+                  updateMarketplaceFilters({ tier: event.target.value as MarketplaceTierFilter })
+                }
+                className="mt-1 h-9 w-full rounded-md border border-line/20 bg-surface2 px-2 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="all">Any price</option>
+                <option value="free">Free</option>
+                <option value="paid">Paid</option>
+              </select>
+            </label>
+
+            <label className="block text-xs font-semibold text-muted">
+              Technology
+              <select
+                value={marketplaceFilters.technology}
+                onChange={(event) => updateMarketplaceFilters({ technology: event.target.value })}
+                className="mt-1 h-9 w-full rounded-md border border-line/20 bg-surface2 px-2 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="all">Any technology</option>
+                {marketplaceTechnologies.map((technology) => (
+                  <option key={technology} value={technology}>
+                    {technology}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              type="button"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-line/20 px-2.5 py-2 text-sm font-semibold text-muted transition-colors hover:bg-surface2 hover:text-text"
+              onClick={clearMarketplaceFilters}
+            >
+              <Filter size={14} />
+              Clear filters
+            </button>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+
   return (
     <div className="neo-root flex h-full min-h-0 flex-col bg-bg">
       <header
@@ -638,7 +816,7 @@ export function NeoApp({
                 </div>
               </div>
             </div>
-            <div className="flex-1" />
+            {marketplaceRailControls}
             {sideActions}
           </aside>
           <section className="neo-panel relative flex h-full min-h-0 overflow-hidden border border-line/20 bg-surface">

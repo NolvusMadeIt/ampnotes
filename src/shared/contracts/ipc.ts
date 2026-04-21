@@ -85,6 +85,12 @@ const exportCreditsSchema = z.object({
   socials: socialLinksSchema.optional()
 })
 
+const marketplaceManifestMetadataSchema = z.object({
+  schemaVersion: z.literal(1).optional(),
+  compatibility: z.string().trim().max(80).optional(),
+  screenshot: z.string().trim().max(240).optional()
+})
+
 const colorTokenNames = new Set([
   '--bg',
   '--surface',
@@ -207,7 +213,7 @@ const themeTokensSchema = z.record(z.string().max(60), safeCssValueSchema).super
   }
 })
 
-export const pluginManifestSchema = z.object({
+export const pluginManifestSchema = marketplaceManifestMetadataSchema.extend({
   id: manifestIdSchema,
   name: z.string().trim().min(2).max(80),
   version: semverLikeSchema,
@@ -227,7 +233,7 @@ export const themeTokenMapSchema = z
   })
   .refine((tokens) => Boolean(tokens.light || tokens.dark), 'A theme must include light or dark tokens')
 
-export const themeManifestSchema = z.object({
+export const themeManifestSchema = marketplaceManifestMetadataSchema.extend({
   id: manifestIdSchema,
   name: z.string().trim().min(2).max(80),
   version: semverLikeSchema,
