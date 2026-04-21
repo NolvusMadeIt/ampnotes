@@ -274,6 +274,32 @@ function normalizeThemeManifest(input: CreateThemeManifestInput): CreateThemeMan
   }
 }
 
+function decodeMarketplaceInstallCode(kind: 'plugin' | 'theme', rawCode: string): CreatePluginManifestInput | CreateThemeManifestInput {
+  const expectedPrefix = kind === 'plugin' ? 'amp-plugin:' : 'amp-theme:'
+  const trimmed = rawCode.trim()
+  const payload = trimmed.startsWith(expectedPrefix) ? trimmed.slice(expectedPrefix.length).trim() : trimmed
+  const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  const binary = atob(padded)
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+  const manifest = JSON.parse(new TextDecoder().decode(bytes)) as CreatePluginManifestInput | CreateThemeManifestInput
+
+  if (manifest.schemaVersion !== 1 || !manifest.compatibility || !manifest.screenshot || !manifest.checksum) {
+    throw new Error('Marketplace code is missing required install metadata.')
+  }
+  if (!/^sha256:[a-f0-9]{64}$/i.test(manifest.checksum)) {
+    throw new Error('Marketplace code has an invalid checksum.')
+  }
+  if (kind === 'plugin' && !('entry' in manifest && manifest.entry)) {
+    throw new Error('Plugin marketplace code is missing an entry file.')
+  }
+  if (kind === 'theme' && !('tokens' in manifest && manifest.tokens)) {
+    throw new Error('Theme marketplace code is missing token data.')
+  }
+
+  return manifest
+}
+
 function toPluginManifest(plugin: InstalledPluginDTO): CreatePluginManifestInput {
   return {
     id: plugin.id,
@@ -1578,6 +1604,40 @@ export function createBrowserApiClient(): ApiClient {
           }
           return clone(state)
         }),
+      installCode: async (profileId: string, kind: 'plugin' | 'theme', code: string) => {
+        const manifest = decodeMarketplaceInstallCode(kind, code)
+        if (kind === 'plugin') {
+          return withDb((db) => {
+            const normalized = normalizePluginManifest(manifest as CreatePluginManifestInput)
+            const existing = db.marketplace.plugins.find((item) => item.id === normalized.id)
+            const plugin: InstalledPluginDTO = {
+              ...normalized,
+              enabled: false,
+              installedAt: existing?.installedAt ?? nowIso(),
+              source: 'marketplace'
+            }
+            db.marketplace.plugins = [
+              ...db.marketplace.plugins.filter((item) => item.id !== normalized.id),
+              plugin
+            ].sort((a, b) => a.name.localeCompare(b.name))
+            return { kind, id: plugin.id, name: plugin.name, enabled: false }
+          })
+        }
+        return withDb((db) => {
+          const normalized = normalizeThemeManifest(manifest as CreateThemeManifestInput)
+          const existing = db.marketplace.themes.find((item) => item.id === normalized.id)
+          const theme: InstalledThemeDTO = {
+            ...normalized,
+            installedAt: existing?.installedAt ?? nowIso(),
+            source: 'marketplace'
+          }
+          db.marketplace.themes = [
+            ...db.marketplace.themes.filter((item) => item.id !== normalized.id),
+            theme
+          ].sort((a, b) => a.name.localeCompare(b.name))
+          return { kind, id: theme.id, name: theme.name, active: false }
+        })
+      },
       registerPlugin: async (_profileId: string, manifest: CreatePluginManifestInput) =>
         withDb((db) => {
           const normalized = normalizePluginManifest(manifest)

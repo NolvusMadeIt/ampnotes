@@ -129,6 +129,11 @@ export interface ApiClient {
   }
   marketplace: {
     getState: (profileId: string) => Promise<MarketplaceStateDTO>
+    installCode: (
+      profileId: string,
+      kind: 'plugin' | 'theme',
+      code: string
+    ) => Promise<MarketplaceDeepLinkInstalledEvent>
     registerPlugin: (profileId: string, manifest: CreatePluginManifestInput) => Promise<InstalledPluginDTO>
     importPluginManifestFile: (profileId: string) => Promise<MarketplaceTransferResult>
     importPluginFromFolder: (profileId: string) => Promise<MarketplaceTransferResult>

@@ -86,6 +86,7 @@ const api: ApiClient = {
   },
   marketplace: {
     getState: (profileId) => invoke('marketplace.getState', { profileId }),
+    installCode: (profileId, kind, code) => invoke('marketplace.installCode', { profileId, kind, code }),
     registerPlugin: (profileId, manifest) => invoke('marketplace.registerPlugin', { profileId, manifest }),
     importPluginManifestFile: (profileId) => invoke('marketplace.importPluginManifestFile', { profileId }),
     importPluginFromFolder: (profileId) => invoke('marketplace.importPluginFromFolder', { profileId }),

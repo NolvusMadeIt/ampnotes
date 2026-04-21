@@ -5,6 +5,7 @@ import { pluginManifestSchema, themeManifestSchema } from '@shared/contracts/ipc
 import type { IpcContext } from './context'
 import { normalizePluginManifest, normalizeThemeManifest } from '@main/db/repos/settingsRepo'
 import { scanPayloadForThreats } from '@main/share/validation'
+import { installMarketplaceCode } from '@main/deepLink'
 
 export function registerMarketplaceIpc(context: IpcContext): void {
   const resolveCredits = (profileId: string) => {
@@ -22,6 +23,14 @@ export function registerMarketplaceIpc(context: IpcContext): void {
   ipcMain.handle('marketplace.getState', (_event, payload: unknown) => {
     const request = payload as { profileId: string }
     return context.settingsRepo.getMarketplaceState(request.profileId)
+  })
+
+  ipcMain.handle('marketplace.installCode', (_event, payload: unknown) => {
+    const request = payload as { profileId: string; kind?: string; code?: string }
+    if (typeof request.profileId !== 'string' || typeof request.code !== 'string') {
+      throw new Error('Invalid payload')
+    }
+    return installMarketplaceCode(request.profileId, request.kind ?? null, request.code, context.settingsRepo)
   })
 
   ipcMain.handle('marketplace.registerPlugin', (_event, payload: unknown) => {

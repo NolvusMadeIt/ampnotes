@@ -22,6 +22,7 @@ import type {
   CreatePluginManifestInput,
   CreateThemeManifestInput,
   MarketplaceStateDTO,
+  MarketplaceDeepLinkInstalledEvent,
   ProfileDTO,
   PromptDTO,
   RefinementResult,
@@ -403,6 +404,46 @@ export default function Routes() {
     }
   }, [activeTag, api.marketplace, api.prompt, api.tag, api.template, profile, selectedPromptId])
 
+  const handleMarketplaceInstalledEvent = useCallback(
+    (event: MarketplaceDeepLinkInstalledEvent) => {
+      void refreshWorkspace()
+      if (event.kind === 'theme') {
+        flashToast(`Installed "${event.name}" theme.`, 'success')
+        if (profile) {
+          void requestConfirm({
+            title: 'Make this your active theme?',
+            message: `Set "${event.name}" as your default AMP theme now?`,
+            confirmLabel: 'Set active theme'
+          }).then(async (confirmed) => {
+            if (!confirmed) {
+              return
+            }
+            await api.marketplace.setActiveTheme(profile.id, event.id)
+            await refreshWorkspace()
+            flashToast(`"${event.name}" is now your active theme.`, 'success')
+          })
+        }
+        return
+      }
+      flashToast(`Installed "${event.name}" plugin.`, 'success')
+      if (profile) {
+        void requestConfirm({
+          title: 'Enable this plugin?',
+          message: `Enable "${event.name}" in AMP now?`,
+          confirmLabel: 'Enable plugin'
+        }).then(async (confirmed) => {
+          if (!confirmed) {
+            return
+          }
+          await api.marketplace.setPluginEnabled(profile.id, event.id, true)
+          await refreshWorkspace()
+          flashToast(`"${event.name}" is enabled.`, 'success')
+        })
+      }
+    },
+    [api.marketplace, flashToast, profile, refreshWorkspace, requestConfirm]
+  )
+
   useEffect(() => {
     void refreshAuth()
   }, [refreshAuth])
@@ -460,43 +501,8 @@ export default function Routes() {
       return undefined
     }
 
-    return api.marketplace.onDeepLinkInstalled((event) => {
-      void refreshWorkspace()
-      if (event.kind === 'theme') {
-        flashToast(`Installed "${event.name}" theme.`, 'success')
-        if (profile) {
-          void requestConfirm({
-            title: 'Make this your active theme?',
-            message: `Set "${event.name}" as your default AMP theme now?`,
-            confirmLabel: 'Set active theme'
-          }).then(async (confirmed) => {
-            if (!confirmed) {
-              return
-            }
-            await api.marketplace.setActiveTheme(profile.id, event.id)
-            await refreshWorkspace()
-            flashToast(`"${event.name}" is now your active theme.`, 'success')
-          })
-        }
-        return
-      }
-      flashToast(`Installed "${event.name}" plugin.`, 'success')
-      if (profile) {
-        void requestConfirm({
-          title: 'Enable this plugin?',
-          message: `Enable "${event.name}" in AMP now?`,
-          confirmLabel: 'Enable plugin'
-        }).then(async (confirmed) => {
-          if (!confirmed) {
-            return
-          }
-          await api.marketplace.setPluginEnabled(profile.id, event.id, true)
-          await refreshWorkspace()
-          flashToast(`"${event.name}" is enabled.`, 'success')
-        })
-      }
-    })
-  }, [api.marketplace, flashToast, profile, refreshWorkspace, requestConfirm])
+    return api.marketplace.onDeepLinkInstalled(handleMarketplaceInstalledEvent)
+  }, [api.marketplace, handleMarketplaceInstalledEvent])
 
   useEffect(() => {
     if (!api.marketplace.onDeepLinkNotice) {
@@ -507,6 +513,52 @@ export default function Routes() {
       flashToast(event.message, event.tone)
     })
   }, [api.marketplace, flashToast])
+
+  useEffect(() => {
+    if (!profile || !api.marketplace.installCode) {
+      return undefined
+    }
+
+    let marketplaceOrigin = ''
+    try {
+      marketplaceOrigin = new URL(marketplaceBaseUrl).origin
+    } catch {
+      return undefined
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== marketplaceOrigin || !event.data || typeof event.data !== 'object') {
+        return
+      }
+
+      const payload = event.data as {
+        source?: string
+        type?: string
+        kind?: 'plugin' | 'theme'
+        code?: string
+      }
+
+      if (
+        payload.source !== 'ampmarketplace' ||
+        payload.type !== 'install' ||
+        (payload.kind !== 'plugin' && payload.kind !== 'theme') ||
+        typeof payload.code !== 'string'
+      ) {
+        return
+      }
+
+      void api.marketplace
+        .installCode(profile.id, payload.kind, payload.code)
+        .then(handleMarketplaceInstalledEvent)
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : 'Marketplace install failed.'
+          flashToast(message, 'danger')
+        })
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [api.marketplace, flashToast, handleMarketplaceInstalledEvent, marketplaceBaseUrl, profile])
 
   const handleCreateAndSignIn = useCallback(
     async (displayName: string) => {

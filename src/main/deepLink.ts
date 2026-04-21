@@ -69,7 +69,7 @@ function emitNotice(payload: DeepLinkNoticePayload): void {
   }
 }
 
-function inferKind(input: string | null, manifest: unknown): DeepLinkKind | null {
+export function inferMarketplaceKind(input: string | null, manifest: unknown): DeepLinkKind | null {
   if (input === 'plugin' || input === 'theme') {
     return input
   }
@@ -83,7 +83,7 @@ function inferKind(input: string | null, manifest: unknown): DeepLinkKind | null
   return null
 }
 
-function decodeMarketplaceCode(rawCode: string, declaredKind: string | null): unknown {
+export function decodeMarketplaceCode(rawCode: string, declaredKind: string | null): unknown {
   const trimmed = rawCode.trim()
   if (!trimmed) {
     throw new Error('Marketplace install code is missing.')
@@ -99,7 +99,7 @@ function decodeMarketplaceCode(rawCode: string, declaredKind: string | null): un
   }
 }
 
-function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknown): void {
+export function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknown): void {
   if (!manifest || typeof manifest !== 'object') {
     throw new Error('Marketplace manifest is missing.')
   }
@@ -122,6 +122,34 @@ function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknown): voi
   if (kind === 'theme' && !metadata.tokens) {
     throw new Error('Theme manifest must include token data.')
   }
+}
+
+export function installMarketplaceCode(
+  profileId: string,
+  declaredKind: string | null,
+  manifestCode: string,
+  settingsRepo: SettingsRepo
+): DeepLinkInstalledPayload {
+  const manifestJson = decodeMarketplaceCode(manifestCode, declaredKind)
+  const kind = inferMarketplaceKind(declaredKind, manifestJson)
+
+  if (kind === 'plugin') {
+    assertMarketplaceManifestV1(kind, manifestJson)
+    const pluginManifest = normalizePluginManifest(pluginManifestSchema.parse(manifestJson))
+    const installed = settingsRepo.registerPlugin(profileId, pluginManifest, 'marketplace')
+    const enabled = false
+    settingsRepo.setPluginEnabled(profileId, installed.id, enabled)
+    return { kind: 'plugin', id: installed.id, name: installed.name, enabled }
+  }
+
+  if (kind === 'theme') {
+    assertMarketplaceManifestV1(kind, manifestJson)
+    const themeManifest = normalizeThemeManifest(themeManifestSchema.parse(manifestJson))
+    const installed = settingsRepo.registerTheme(profileId, themeManifest, 'marketplace')
+    return { kind: 'theme', id: installed.id, name: installed.name, active: false }
+  }
+
+  throw new Error('Unsupported marketplace install link. AMP could not tell whether it is a plugin or theme.')
 }
 
 export async function handleInstallDeepLink(
@@ -164,32 +192,7 @@ export async function handleInstallDeepLink(
   }
 
   try {
-    const manifestJson = decodeMarketplaceCode(manifestCode, declaredKind)
-    const kind = inferKind(declaredKind, manifestJson)
-
-    if (kind === 'plugin') {
-      assertMarketplaceManifestV1(kind, manifestJson)
-      const pluginManifest = normalizePluginManifest(pluginManifestSchema.parse(manifestJson))
-      const installed = settingsRepo.registerPlugin(session.profileId, pluginManifest, 'marketplace')
-      const enabled = false
-      settingsRepo.setPluginEnabled(session.profileId, installed.id, enabled)
-      emitInstalled({ kind: 'plugin', id: installed.id, name: installed.name, enabled })
-      return
-    }
-
-    if (kind === 'theme') {
-      assertMarketplaceManifestV1(kind, manifestJson)
-      const themeManifest = normalizeThemeManifest(themeManifestSchema.parse(manifestJson))
-      const installed = settingsRepo.registerTheme(session.profileId, themeManifest, 'marketplace')
-      const active = false
-      emitInstalled({ kind: 'theme', id: installed.id, name: installed.name, active })
-      return
-    }
-
-    emitNotice({
-      tone: 'danger',
-      message: 'Unsupported marketplace install link. AMP could not tell whether it is a plugin or theme.'
-    })
+    emitInstalled(installMarketplaceCode(session.profileId, declaredKind, manifestCode, settingsRepo))
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Installation failed'
     emitNotice({
