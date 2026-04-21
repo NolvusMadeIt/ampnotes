@@ -12,6 +12,7 @@ import type {
   MarketplaceFolderResult,
   MarketplaceTransferResult,
   MarketplaceDeepLinkInstalledEvent,
+  MarketplaceDeepLinkNoticeEvent,
   AppearanceSettingsDTO,
   MarketplaceStateDTO,
   ProfileDTO,
@@ -36,6 +37,7 @@ export interface ApiClient {
       updateAvailable: boolean
       currentVersion: string
       latestVersion?: string
+      releaseUrl?: string
       reason?: string
     }>
   }
@@ -142,5 +144,6 @@ export interface ApiClient {
     removeTheme: (profileId: string, themeId: string) => Promise<{ ok: boolean }>
     openThemeFolder: (profileId: string, themeId: string) => Promise<MarketplaceFolderResult>
     onDeepLinkInstalled: (callback: (event: MarketplaceDeepLinkInstalledEvent) => void) => () => void
+    onDeepLinkNotice: (callback: (event: MarketplaceDeepLinkNoticeEvent) => void) => () => void
   }
 }

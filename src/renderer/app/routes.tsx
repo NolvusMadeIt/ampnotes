@@ -36,7 +36,7 @@ const EMPTY_MARKETPLACE_STATE: MarketplaceStateDTO = {
   activeThemeId: null
 }
 
-const MARKETPLACE_URL = 'https://nolvusmadeit.github.io/ampnotes/'
+const MARKETPLACE_URL = import.meta.env.VITE_AMP_MARKETPLACE_URL ?? 'http://localhost:4200/'
 
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
@@ -46,6 +46,25 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APP_VERSION = '0.1.2'
+
+function buildMarketplaceUrl(
+  theme: ThemeMode,
+  appearance: AppearanceSettingsDTO,
+  activeMarketplaceThemeId?: string
+): string {
+  try {
+    const url = new URL(MARKETPLACE_URL)
+    url.searchParams.set('embedded', '1')
+    url.searchParams.set('ampTheme', resolveTheme(theme))
+    url.searchParams.set('ampPreset', appearance.themePreset)
+    if (activeMarketplaceThemeId) {
+      url.searchParams.set('activeThemeId', activeMarketplaceThemeId)
+    }
+    return url.toString()
+  } catch {
+    return 'http://localhost:4200/?embedded=1'
+  }
+}
 
 function AppFooter({
   version,
@@ -90,8 +109,8 @@ function AppTopNav({
   onClose?: () => void
 }) {
   return (
-    <header className="flex items-center gap-4 border-b border-line/20 bg-surface px-5 py-3">
-      <h2 className="editorial-heading text-xl font-semibold">{title}</h2>
+    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line/20 bg-surface px-4">
+      <h2 className="editorial-heading truncate text-xl font-semibold">{title}</h2>
       <nav className="ml-auto flex items-center gap-2 text-sm">
         <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onMarketplace}>
           Marketplace
@@ -139,6 +158,8 @@ export default function Routes() {
   const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'admin' | 'all'>('all')
   const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
+  const [marketplaceLoadKey, setMarketplaceLoadKey] = useState(0)
+  const [marketplaceStatus, setMarketplaceStatus] = useState<'loading' | 'ready' | 'error'>('loading')
 
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineConfigured, setRefineConfigured] = useState(false)
@@ -196,6 +217,21 @@ export default function Routes() {
     applyTheme(theme, activeMarketplaceTheme?.tokens)
   }, [activeMarketplaceTheme?.tokens, appearance, theme])
 
+  const marketplaceUrl = useMemo(() => {
+    return buildMarketplaceUrl(theme, appearance, activeMarketplaceTheme?.id)
+  }, [activeMarketplaceTheme?.id, appearance.themePreset, theme])
+
+  const openMarketplace = useCallback(() => {
+    setMarketplaceStatus('loading')
+    setMarketplaceLoadKey((current) => current + 1)
+    setMarketplaceOpen(true)
+  }, [])
+
+  const retryMarketplace = useCallback(() => {
+    setMarketplaceStatus('loading')
+    setMarketplaceLoadKey((current) => current + 1)
+  }, [])
+
   const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
     const timer = toastTimersRef.current.get(id)
@@ -223,6 +259,10 @@ export default function Routes() {
     const result = await api.app.checkForUpdates()
     if (!result.ok) {
       flashToast(result.reason ?? 'Update check failed.', 'warning')
+      return
+    }
+    if (result.updateAvailable) {
+      flashToast(`AMP ${result.latestVersion ?? 'update'} is available. Open the releases page to download it.`, 'success')
       return
     }
     if (!result.updateAvailable) {
@@ -431,14 +471,50 @@ export default function Routes() {
     return api.marketplace.onDeepLinkInstalled((event) => {
       void refreshWorkspace()
       if (event.kind === 'theme') {
-        flashToast(
-          event.active ? `Installed "${event.name}" and set active theme.` : `Installed "${event.name}" theme.`
-        )
+        flashToast(`Installed "${event.name}" theme.`, 'success')
+        if (profile) {
+          void requestConfirm({
+            title: 'Make this your active theme?',
+            message: `Set "${event.name}" as your default AMP theme now?`,
+            confirmLabel: 'Set active theme'
+          }).then(async (confirmed) => {
+            if (!confirmed) {
+              return
+            }
+            await api.marketplace.setActiveTheme(profile.id, event.id)
+            await refreshWorkspace()
+            flashToast(`"${event.name}" is now your active theme.`, 'success')
+          })
+        }
         return
       }
-      flashToast(event.enabled ? `Installed "${event.name}" and enabled plugin.` : `Installed "${event.name}" plugin.`)
+      flashToast(`Installed "${event.name}" plugin.`, 'success')
+      if (profile) {
+        void requestConfirm({
+          title: 'Enable this plugin?',
+          message: `Enable "${event.name}" in AMP now?`,
+          confirmLabel: 'Enable plugin'
+        }).then(async (confirmed) => {
+          if (!confirmed) {
+            return
+          }
+          await api.marketplace.setPluginEnabled(profile.id, event.id, true)
+          await refreshWorkspace()
+          flashToast(`"${event.name}" is enabled.`, 'success')
+        })
+      }
     })
-  }, [api.marketplace, flashToast, refreshWorkspace])
+  }, [api.marketplace, flashToast, profile, refreshWorkspace, requestConfirm])
+
+  useEffect(() => {
+    if (!api.marketplace.onDeepLinkNotice) {
+      return undefined
+    }
+
+    return api.marketplace.onDeepLinkNotice((event) => {
+      flashToast(event.message, event.tone)
+    })
+  }, [api.marketplace, flashToast])
 
   const handleCreateAndSignIn = useCallback(
     async (displayName: string) => {
@@ -1061,16 +1137,22 @@ export default function Routes() {
         latestUpdated={latestUpdated}
         selectedPromptId={selectedPromptId}
         validatingPromptId={validatingPromptId}
+        marketplaceOpen={marketplaceOpen}
+        marketplaceUrl={marketplaceUrl}
+        marketplaceLoadKey={marketplaceLoadKey}
+        marketplaceStatus={marketplaceStatus}
         onSelectPromptId={setSelectedPromptId}
         onSelectTag={handleSelectTag}
         onCreatePrompt={handleCreatePrompt}
         onOpenShareImport={() => setShareOpen(true)}
+        onOpenWorkspace={() => setMarketplaceOpen(false)}
         onOpenSettings={() => openSettings('general')}
         onOpenAbout={() => setLegalPage('about')}
         onOpenTos={() => setLegalPage('tos')}
-        onOpenMarketplace={() => {
-          setMarketplaceOpen(true)
-        }}
+        onOpenMarketplace={openMarketplace}
+        onRetryMarketplace={retryMarketplace}
+        onMarketplaceLoad={() => setMarketplaceStatus('ready')}
+        onMarketplaceError={() => setMarketplaceStatus('error')}
         onCheckForUpdates={handleCheckForUpdates}
         onCopyPrompt={handleCopy}
         onSavePrompt={handleSavePrompt}
@@ -1096,7 +1178,7 @@ export default function Routes() {
               onSettings={() => openSettings('general')}
               onMarketplace={() => {
                 setSettingsOpen(false)
-                setMarketplaceOpen(true)
+                openMarketplace()
               }}
               onAbout={() => {
                 setSettingsOpen(false)
@@ -1188,47 +1270,6 @@ export default function Routes() {
         </div>
       )}
 
-      {marketplaceOpen && (
-        <div className="fixed inset-0 z-[90] bg-bg p-3">
-          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
-            <AppTopNav
-              title="Marketplace"
-              onSettings={() => {
-                setMarketplaceOpen(false)
-                openSettings('general')
-              }}
-              onMarketplace={() => setMarketplaceOpen(true)}
-              onAbout={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('about')
-              }}
-              onTos={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('tos')
-              }}
-              onCheckForUpdates={handleCheckForUpdates}
-              onClose={() => setMarketplaceOpen(false)}
-            />
-            <iframe
-              title="AMP Marketplace"
-              src={MARKETPLACE_URL}
-              className="min-h-0 flex-1 border-0 bg-bg"
-            />
-            <AppFooter
-              version={appVersion}
-              onAbout={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('about')
-              }}
-              onTos={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('tos')
-              }}
-            />
-          </div>
-        </div>
-      )}
-
       {legalPage && (
         <div className="fixed inset-0 z-[90] bg-bg p-3">
           <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
@@ -1240,7 +1281,7 @@ export default function Routes() {
               }}
               onMarketplace={() => {
                 setLegalPage(null)
-                setMarketplaceOpen(true)
+                openMarketplace()
               }}
               onAbout={() => setLegalPage('about')}
               onTos={() => setLegalPage('tos')}

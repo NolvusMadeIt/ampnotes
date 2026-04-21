@@ -12,6 +12,7 @@ import type {
   ThemePresetOption,
   ThemeMode
 } from '@shared/types'
+import { pluginManifestSchema, themeManifestSchema } from '@shared/contracts/ipc'
 import { Button } from '@renderer/components/ui/Button'
 import { HelpTooltip } from '@renderer/components/ui/HelpTooltip'
 import { Modal } from '@renderer/components/ui/Modal'
@@ -135,16 +136,6 @@ type ThemeBuilderToken =
   | '--success'
   | '--warning'
   | '--danger'
-  | '--chart-1'
-  | '--chart-2'
-  | '--chart-3'
-  | '--chart-4'
-  | '--chart-5'
-  | '--sidebar'
-  | '--sidebar-foreground'
-  | '--sidebar-primary'
-  | '--sidebar-accent'
-  | '--sidebar-border'
 
 type ThemeColorField = readonly [ThemeBuilderToken, string, string]
 type ThemeColorSection = {
@@ -154,11 +145,9 @@ type ThemeColorSection = {
 
 const THEME_COLOR_SECTIONS: readonly ThemeColorSection[] = [
   {
-    title: 'Foundation',
+    title: 'App Shell',
     fields: [
       ['--bg', 'Background', 'Main app canvas'],
-      ['--surface', 'Card', 'Prompt cards and panels'],
-      ['--surface-2', 'Secondary', 'Navigation hovers and soft panels'],
       ['--text', 'Foreground', 'Primary readable text'],
       ['--text-muted', 'Muted Foreground', 'Helper text and metadata'],
       ['--icon', 'Icon', 'Primary tool and navigation icons'],
@@ -167,10 +156,17 @@ const THEME_COLOR_SECTIONS: readonly ThemeColorSection[] = [
     ]
   },
   {
-    title: 'Interactive',
+    title: 'Surfaces',
     fields: [
+      ['--surface', 'Panel', 'Side nav, editor, and settings panels'],
+      ['--surface-2', 'Soft Surface', 'Selected nav rows, prompt cards, and secondary panels'],
       ['--popover', 'Popover', 'Menus, tooltips, floating panels'],
-      ['--popover-foreground', 'Popover Foreground', 'Text inside popovers'],
+      ['--popover-foreground', 'Popover Text', 'Text inside popovers']
+    ]
+  },
+  {
+    title: 'Controls',
+    fields: [
       ['--input', 'Input', 'Fields and editable surfaces'],
       ['--ring', 'Ring', 'Focus states and selected controls'],
       ['--accent', 'Accent', 'Primary action color'],
@@ -183,26 +179,6 @@ const THEME_COLOR_SECTIONS: readonly ThemeColorSection[] = [
       ['--success', 'Success', 'Good validation and enabled states'],
       ['--warning', 'Warning', 'Caution and needs-attention states'],
       ['--danger', 'Danger', 'Delete and destructive states']
-    ]
-  },
-  {
-    title: 'Charts',
-    fields: [
-      ['--chart-1', 'Chart 1', 'Primary graph line'],
-      ['--chart-2', 'Chart 2', 'Secondary graph line'],
-      ['--chart-3', 'Chart 3', 'Bar series'],
-      ['--chart-4', 'Chart 4', 'Comparison series'],
-      ['--chart-5', 'Chart 5', 'Accent series']
-    ]
-  },
-  {
-    title: 'Sidebar',
-    fields: [
-      ['--sidebar', 'Sidebar', 'Navigation rail background'],
-      ['--sidebar-foreground', 'Sidebar Foreground', 'Navigation text'],
-      ['--sidebar-primary', 'Sidebar Primary', 'Active navigation item'],
-      ['--sidebar-accent', 'Sidebar Accent', 'Hovered navigation item'],
-      ['--sidebar-border', 'Sidebar Border', 'Sidebar dividers']
     ]
   }
 ] as const
@@ -256,17 +232,7 @@ const DEFAULT_THEME_BUILDER = {
     '--accent-contrast': '#ffffff',
     '--success': '#16855f',
     '--warning': '#a86818',
-    '--danger': '#b33a3a',
-    '--chart-1': '#7c9cff',
-    '--chart-2': '#4fb6a3',
-    '--chart-3': '#d9984a',
-    '--chart-4': '#8c6ce8',
-    '--chart-5': '#d45d7c',
-    '--sidebar': '#eef1f5',
-    '--sidebar-foreground': '#20242c',
-    '--sidebar-primary': '#111111',
-    '--sidebar-accent': '#e1e6ee',
-    '--sidebar-border': '#d2d8e2'
+    '--danger': '#b33a3a'
   },
   dark: {
     '--bg': '#090a0d',
@@ -285,28 +251,83 @@ const DEFAULT_THEME_BUILDER = {
     '--accent-contrast': '#090a0d',
     '--success': '#43b581',
     '--warning': '#d69a35',
-    '--danger': '#e36a6a',
-    '--chart-1': '#7c9cff',
-    '--chart-2': '#43b581',
-    '--chart-3': '#d69a35',
-    '--chart-4': '#9a7cff',
-    '--chart-5': '#e36a9a',
-    '--sidebar': '#08090c',
-    '--sidebar-foreground': '#d7deea',
-    '--sidebar-primary': '#f4f6fb',
-    '--sidebar-accent': '#151923',
-    '--sidebar-border': '#202532'
+    '--danger': '#e36a6a'
   },
   radius: '0.5rem',
+  radiusSm: '5px',
+  radiusMd: '6px',
+  radiusLg: '8px',
+  radiusXl: '10px',
   shadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
   fontSans: 'Geist, Public Sans, sans-serif',
   fontSerif: 'Source Serif 4, Georgia, serif',
-  fontMono: 'JetBrains Mono, monospace'
+  fontMono: 'JetBrains Mono, monospace',
+  fontSizeBase: '100%',
+  lineHeightBody: '1.62',
+  lineHeightTight: '1.18',
+  letterSpacingHeading: '0',
+  letterSpacingMeta: '0.18em',
+  fontWeightRegular: '400',
+  fontWeightMedium: '500',
+  fontWeightSemibold: '700',
+  controlHeightSm: '2rem',
+  controlHeightMd: '2.25rem',
+  controlPaddingX: '0.75rem',
+  panelPadding: '0.75rem',
+  panelGap: '0.75rem',
+  sidebarWidth: '280px',
+  scrollbarSize: '10px',
+  focusOutlineWidth: '2px',
+  ambientA: 'rgba(79, 124, 255, 0.08)',
+  ambientB: 'rgba(67, 83, 104, 0.06)',
+  ambientOverlay: 'rgba(255, 255, 255, 0.24)',
+  toastBg: '#11151d',
+  toastText: '#e7edf8',
+  toastMuted: '#98a7bc',
+  toastBorder: '#1f2734'
 }
 
 type BuilderMode = 'light' | 'dark'
 type ThemeBuilderState = typeof DEFAULT_THEME_BUILDER
 type BuilderColorState = ThemeBuilderState[BuilderMode]
+
+const SHARED_BUILDER_TOKEN_KEYS = [
+  ['--radius-sm', 'radiusSm'],
+  ['--radius-md', 'radiusMd'],
+  ['--radius-lg', 'radiusLg'],
+  ['--radius-xl', 'radiusXl'],
+  ['--shadow-panel', 'shadow'],
+  ['--font-sans', 'fontSans'],
+  ['--font-serif', 'fontSerif'],
+  ['--font-mono', 'fontMono'],
+  ['--font-size-base', 'fontSizeBase'],
+  ['--line-height-body', 'lineHeightBody'],
+  ['--line-height-tight', 'lineHeightTight'],
+  ['--letter-spacing-heading', 'letterSpacingHeading'],
+  ['--letter-spacing-meta', 'letterSpacingMeta'],
+  ['--font-weight-regular', 'fontWeightRegular'],
+  ['--font-weight-medium', 'fontWeightMedium'],
+  ['--font-weight-semibold', 'fontWeightSemibold'],
+  ['--control-height-sm', 'controlHeightSm'],
+  ['--control-height-md', 'controlHeightMd'],
+  ['--control-padding-x', 'controlPaddingX'],
+  ['--panel-padding', 'panelPadding'],
+  ['--panel-gap', 'panelGap'],
+  ['--sidebar-width', 'sidebarWidth'],
+  ['--scrollbar-size', 'scrollbarSize'],
+  ['--focus-outline-width', 'focusOutlineWidth'],
+  ['--ambient-a', 'ambientA'],
+  ['--ambient-b', 'ambientB'],
+  ['--ambient-overlay', 'ambientOverlay'],
+  ['--toast-bg', 'toastBg'],
+  ['--toast-text', 'toastText'],
+  ['--toast-muted', 'toastMuted'],
+  ['--toast-border', 'toastBorder']
+] as const satisfies readonly [string, keyof ThemeBuilderState][]
+
+function createSharedBuilderTokens(builder: ThemeBuilderState): Record<string, string> {
+  return Object.fromEntries(SHARED_BUILDER_TOKEN_KEYS.map(([token, key]) => [token, String(builder[key])]))
+}
 
 function createThemeManifestFromBuilder(builder: ThemeBuilderState): CreateThemeManifestInput {
   return {
@@ -318,19 +339,11 @@ function createThemeManifestFromBuilder(builder: ThemeBuilderState): CreateTheme
     tokens: {
       light: {
         ...builder.light,
-        '--radius-md': builder.radius,
-        '--shadow-panel': builder.shadow,
-        '--font-sans': builder.fontSans,
-        '--font-serif': builder.fontSerif,
-        '--font-mono': builder.fontMono
+        ...createSharedBuilderTokens(builder)
       },
       dark: {
         ...builder.dark,
-        '--radius-md': builder.radius,
-        '--shadow-panel': builder.shadow,
-        '--font-sans': builder.fontSans,
-        '--font-serif': builder.fontSerif,
-        '--font-mono': builder.fontMono
+        ...createSharedBuilderTokens(builder)
       }
     }
   }
@@ -362,19 +375,105 @@ function createThemeBuilderFromManifest(theme: CreateThemeManifestInput): ThemeB
     light: createBuilderColorsFromManifest(theme.tokens, 'light'),
     dark: createBuilderColorsFromManifest(theme.tokens, 'dark'),
     radius: getSharedThemeToken(theme.tokens, '--radius-md', DEFAULT_THEME_BUILDER.radius),
-    shadow: getSharedThemeToken(theme.tokens, '--shadow-panel', DEFAULT_THEME_BUILDER.shadow),
-    fontSans: getSharedThemeToken(theme.tokens, '--font-sans', DEFAULT_THEME_BUILDER.fontSans),
-    fontSerif: getSharedThemeToken(theme.tokens, '--font-serif', DEFAULT_THEME_BUILDER.fontSerif),
-    fontMono: getSharedThemeToken(theme.tokens, '--font-mono', DEFAULT_THEME_BUILDER.fontMono)
+    ...Object.fromEntries(
+      SHARED_BUILDER_TOKEN_KEYS.map(([token, key]) => [key, getSharedThemeToken(theme.tokens, token, String(DEFAULT_THEME_BUILDER[key]))])
+    )
   }
 }
 
-function parseManifestJson<T>(raw: string): T {
+type MarketplaceCodeKind = 'plugin' | 'theme'
+
+const MARKETPLACE_CODE_PREFIXES: Record<MarketplaceCodeKind, string> = {
+  plugin: 'amp-plugin:',
+  theme: 'amp-theme:'
+}
+
+function formatValidationError(error: unknown): string {
+  if (error && typeof error === 'object' && 'issues' in error) {
+    const issues = (error as { issues?: Array<{ path?: Array<string | number>; message?: string }> }).issues
+    if (Array.isArray(issues) && issues.length > 0) {
+      return issues
+        .slice(0, 4)
+        .map((issue) => `${issue.path?.join('.') || 'manifest'}: ${issue.message ?? 'Invalid value'}`)
+        .join(' ')
+    }
+  }
+  return error instanceof Error ? error.message : 'Manifest validation failed.'
+}
+
+function parseManifestJson(raw: string): unknown {
   const trimmed = raw.trim()
   if (!trimmed) {
     throw new Error('Paste a JSON manifest first.')
   }
-  return JSON.parse(trimmed) as T
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    throw new Error('Manifest must be valid JSON.')
+  }
+}
+
+function parsePluginManifestJson(raw: string): CreatePluginManifestInput {
+  try {
+    return pluginManifestSchema.parse(parseManifestJson(raw))
+  } catch (error) {
+    throw new Error(formatValidationError(error))
+  }
+}
+
+function parseThemeManifestJson(raw: string): CreateThemeManifestInput {
+  try {
+    return themeManifestSchema.parse(parseManifestJson(raw))
+  } catch (error) {
+    throw new Error(formatValidationError(error))
+  }
+}
+
+function toBase64Url(value: string): string {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+function fromBase64Url(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  const binary = atob(padded)
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+  return new TextDecoder().decode(bytes)
+}
+
+function createMarketplaceCode(kind: MarketplaceCodeKind, manifest: CreatePluginManifestInput | CreateThemeManifestInput): string {
+  return `${MARKETPLACE_CODE_PREFIXES[kind]}${toBase64Url(JSON.stringify(manifest))}`
+}
+
+function decodeMarketplaceCode(kind: MarketplaceCodeKind, rawCode: string): CreatePluginManifestInput | CreateThemeManifestInput {
+  const trimmed = rawCode.trim()
+  if (!trimmed) {
+    throw new Error('Paste a marketplace code first.')
+  }
+  const expectedPrefix = MARKETPLACE_CODE_PREFIXES[kind]
+  const otherKind = kind === 'plugin' ? 'theme' : 'plugin'
+  const otherPrefix = MARKETPLACE_CODE_PREFIXES[otherKind]
+  if (trimmed.startsWith(otherPrefix)) {
+    throw new Error(`This is a ${otherKind} code. Paste a ${kind} code here.`)
+  }
+  const payload = trimmed.startsWith(expectedPrefix) ? trimmed.slice(expectedPrefix.length).trim() : trimmed
+  let manifestJson: string
+  try {
+    manifestJson = fromBase64Url(payload)
+  } catch {
+    throw new Error('Marketplace code is invalid or corrupted.')
+  }
+  return kind === 'plugin' ? parsePluginManifestJson(manifestJson) : parseThemeManifestJson(manifestJson)
+}
+
+async function copyMarketplaceCode(kind: MarketplaceCodeKind, rawManifestJson: string): Promise<void> {
+  const manifest = kind === 'plugin' ? parsePluginManifestJson(rawManifestJson) : parseThemeManifestJson(rawManifestJson)
+  await navigator.clipboard.writeText(createMarketplaceCode(kind, manifest))
 }
 
 async function copyJson(value: unknown): Promise<void> {
@@ -444,16 +543,16 @@ export function SettingsDialog({
   onVerifyAdminPin,
   onSignOut
 }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<'general' | 'plugins' | 'themes' | 'admin'>(
+  const [activeSection, setActiveSection] = useState<'general' | 'plugins' | 'themes' | 'customizeThemes' | 'admin'>(
     section === 'plugins' || section === 'themes' || section === 'admin' ? section : 'general'
   )
   const [apiKey, setApiKey] = useState('')
   const [fontScaleDraft, setFontScaleDraft] = useState(appearance.fontScale)
   const [pluginManifestJson, setPluginManifestJson] = useState('')
-  const [pluginMarketplaceUrl, setPluginMarketplaceUrl] = useState('')
+  const [pluginMarketplaceCode, setPluginMarketplaceCode] = useState('')
   const [editingPluginId, setEditingPluginId] = useState<string | null>(null)
   const [themeManifestJson, setThemeManifestJson] = useState('')
-  const [themeMarketplaceUrl, setThemeMarketplaceUrl] = useState('')
+  const [themeMarketplaceCode, setThemeMarketplaceCode] = useState('')
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null)
   const [themeBuilder, setThemeBuilder] = useState<ThemeBuilderState>(DEFAULT_THEME_BUILDER)
   const [builderMode, setBuilderMode] = useState<BuilderMode>('light')
@@ -497,6 +596,7 @@ export function SettingsDialog({
   const showGeneral = activeSection === 'general'
   const showPlugins = activeSection === 'plugins'
   const showThemes = activeSection === 'themes'
+  const showCustomizeThemes = activeSection === 'customizeThemes'
   const showAdmin = activeSection === 'admin'
   const builderColors = themeBuilder[builderMode]
   const activeTokenLabel = useMemo(() => {
@@ -534,28 +634,20 @@ export function SettingsDialog({
     }
   }
 
-  const loadManifestFromUrl = async (
+  const loadManifestFromCode = async (
     actionKey: string,
-    rawUrl: string,
+    rawCode: string,
+    kind: MarketplaceCodeKind,
     onLoaded: (payload: string) => void
   ) => {
-    const url = rawUrl.trim()
-    if (!url) {
-      setMarketplaceError('Paste a marketplace manifest URL first.')
+    const code = rawCode.trim()
+    if (!code) {
+      setMarketplaceError('Paste a marketplace code first.')
       return
     }
     await runAction(actionKey, async () => {
-      const response = await fetch(url, {
-        headers: {
-          Accept: 'application/json, text/plain'
-        }
-      })
-      if (!response.ok) {
-        throw new Error(`Could not fetch manifest (${response.status})`)
-      }
-      const payload = await response.text()
-      JSON.parse(payload)
-      onLoaded(payload)
+      const manifest = decodeMarketplaceCode(kind, code)
+      onLoaded(JSON.stringify(manifest, null, 2))
     })
   }
 
@@ -641,7 +733,7 @@ export function SettingsDialog({
 
   const loadManifestIntoBuilder = () => {
     try {
-      const manifest = parseManifestJson<CreateThemeManifestInput>(themeManifestJson)
+      const manifest = parseThemeManifestJson(themeManifestJson)
       setThemeBuilder(createThemeBuilderFromManifest(manifest))
       setEditingThemeId(manifest.id)
       setMarketplaceError(null)
@@ -663,59 +755,6 @@ export function SettingsDialog({
       color: builderColors['--text'],
       border: `1px solid ${builderColors['--border']}`,
       borderRadius: themeBuilder.radius
-    }
-
-    if (token.startsWith('--chart-')) {
-      return (
-        <div className="mt-3 flex min-h-20 items-end gap-1 p-2" style={shellStyle}>
-          {[24, 42, 30, 58, 38].map((height, index) => (
-            <span
-              key={index}
-              className="flex-1"
-              style={{
-                height,
-                background: token === `--chart-${index + 1}` ? tokenColor : builderColors['--text-muted'],
-                opacity: token === `--chart-${index + 1}` ? 1 : 0.35,
-                borderRadius: '2px'
-              }}
-            />
-          ))}
-        </div>
-      )
-    }
-
-    if (token.startsWith('--sidebar')) {
-      return (
-        <div
-          className="mt-3 min-h-20 space-y-1 p-2 text-[10px]"
-          style={{
-            background: token === '--sidebar' ? tokenColor : builderColors['--sidebar'],
-            color: token === '--sidebar-foreground' ? tokenColor : builderColors['--sidebar-foreground'],
-            border: `1px solid ${token === '--sidebar-border' ? tokenColor : builderColors['--sidebar-border']}`,
-            borderRadius: themeBuilder.radius
-          }}
-        >
-          <span
-            className="block px-2 py-1"
-            style={{
-              background: token === '--sidebar-primary' ? tokenColor : builderColors['--sidebar-primary'],
-              color: builderColors['--accent-contrast'],
-              borderRadius: '2px'
-            }}
-          >
-            Active page
-          </span>
-          <span
-            className="block px-2 py-1"
-            style={{
-              background: token === '--sidebar-accent' ? tokenColor : builderColors['--sidebar-accent'],
-              borderRadius: '2px'
-            }}
-          >
-            Hovered tag
-          </span>
-        </div>
-      )
     }
 
     switch (token) {
@@ -833,7 +872,7 @@ export function SettingsDialog({
           {([
             ['general', 'General'],
             ['plugins', 'Plugins'],
-            ['themes', 'Customize Themes'],
+            ['themes', 'Themes'],
             ['admin', 'Admin']
           ] as const).map(([value, label]) => (
           <Button
@@ -1078,22 +1117,22 @@ export function SettingsDialog({
             <div className="grid gap-2 md:grid-cols-[1fr_auto]">
               <input
                 className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 text-xs outline-none focus:border-accent/10"
-                placeholder="Marketplace JSON URL (https://...)"
-                value={pluginMarketplaceUrl}
-                onChange={(event) => setPluginMarketplaceUrl(event.target.value)}
+                placeholder="Marketplace plugin code (amp-plugin:...)"
+                value={pluginMarketplaceCode}
+                onChange={(event) => setPluginMarketplaceCode(event.target.value)}
               />
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={busyKey === 'plugin-import-url'}
+                disabled={busyKey === 'plugin-import-code'}
                 onClick={async () =>
-                  loadManifestFromUrl('plugin-import-url', pluginMarketplaceUrl, (payload) => {
+                  loadManifestFromCode('plugin-import-code', pluginMarketplaceCode, 'plugin', (payload) => {
                     setPluginManifestJson(payload)
                     setEditingPluginId(null)
                   })
                 }
               >
-                Load URL
+                Load Code
               </Button>
             </div>
             <textarea
@@ -1109,7 +1148,7 @@ export function SettingsDialog({
                 disabled={busyKey === 'register-plugin'}
                 onClick={async () =>
                   runAction('register-plugin', async () => {
-                    const manifest = parseManifestJson<CreatePluginManifestInput>(pluginManifestJson)
+                    const manifest = parsePluginManifestJson(pluginManifestJson)
                     await onRegisterPlugin(manifest)
                     setPluginManifestJson('')
                     setEditingPluginId(null)
@@ -1117,6 +1156,18 @@ export function SettingsDialog({
                 }
               >
                 {editingPluginId ? 'Update Plugin Manifest' : 'Save Plugin Manifest'}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'plugin-copy-code'}
+                onClick={async () =>
+                  runAction('plugin-copy-code', async () => {
+                    await copyMarketplaceCode('plugin', pluginManifestJson)
+                  })
+                }
+              >
+                Copy Code
               </Button>
               {editingPluginId && (
                 <Button
@@ -1398,14 +1449,135 @@ export function SettingsDialog({
 
       {showThemes && (
         <section className="space-y-4 rounded-xl border border-line/20 bg-surface2 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+                Installed Themes
+                <HelpTooltip text="Themes installed from the AMP Marketplace or imported locally appear here." />
+              </h3>
+              <p className="mt-1 text-sm text-muted">
+                Activate, export, open, or remove installed themes. Use Customize Themes only when you want to build or edit theme tokens.
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => setActiveSection('customizeThemes')}>
+              Customize Themes
+            </Button>
+          </div>
+
+          {marketplaceState.themes.length === 0 ? (
+            <article className="rounded-lg border border-line/20 bg-surface p-4">
+              <p className="text-sm font-medium">No themes installed yet.</p>
+              <p className="mt-1 text-sm text-muted">
+                Install a theme from the AMP Marketplace and it will show up here.
+              </p>
+            </article>
+          ) : (
+            <div className="space-y-2">
+              {marketplaceState.themes.map((themeItem) => {
+                const isActive = marketplaceState.activeThemeId === themeItem.id
+                return (
+                  <article
+                    key={themeItem.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line/20 bg-surface p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">
+                        {themeItem.name} <span className="text-muted">v{themeItem.version}</span>
+                      </p>
+                      <p className="text-xs text-muted">{themeItem.id}</p>
+                      {isActive ? <p className="mt-1 text-xs font-medium text-success">Active theme</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant={isActive ? 'secondary' : 'primary'}
+                        disabled={busyKey === `theme-${themeItem.id}`}
+                        onClick={async () =>
+                          runAction(`theme-${themeItem.id}`, async () => {
+                            await onSetActiveMarketplaceTheme(isActive ? null : themeItem.id)
+                          })
+                        }
+                      >
+                        {isActive ? 'Deactivate' : 'Activate'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          const manifest = toThemeManifestInput(themeItem)
+                          setEditingThemeId(themeItem.id)
+                          setThemeBuilder(createThemeBuilderFromManifest(manifest))
+                          setThemeManifestJson(JSON.stringify(manifest, null, 2))
+                          setActiveSection('customizeThemes')
+                        }}
+                      >
+                        Customize
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busyKey === `theme-folder-${themeItem.id}`}
+                        onClick={async () =>
+                          runAction(`theme-folder-${themeItem.id}`, async () => {
+                            const result = await onOpenThemeFolder(themeItem.id)
+                            if (!result.ok) {
+                              throw new Error(result.reason ?? 'Could not open theme folder')
+                            }
+                          })
+                        }
+                      >
+                        <FolderOpen size={14} className="mr-2" />
+                        Open Folder
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={async () => copyJson(themeItem)}>
+                        Copy JSON
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={busyKey === `theme-export-${themeItem.id}`}
+                        onClick={async () =>
+                          runAction(`theme-export-${themeItem.id}`, async () => {
+                            await onExportThemeManifest(themeItem.id)
+                          })
+                        }
+                      >
+                        Export File
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        disabled={busyKey === `theme-remove-${themeItem.id}`}
+                        onClick={async () =>
+                          runAction(`theme-remove-${themeItem.id}`, async () => {
+                            await onRemoveTheme(themeItem.id)
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {showCustomizeThemes && (
+        <section className="space-y-4 rounded-xl border border-line/20 bg-surface2 p-4">
           <div>
             <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
-              Themes
+              Customize Themes
               <HelpTooltip text="Create, edit, activate, and share themes." />
             </h3>
             <p className="mt-1 text-sm text-muted">
               Import from marketplace URL, paste JSON, or load a local folder, then use the builder to refine visuals.
             </p>
+            <Button className="mt-3" size="sm" variant="secondary" onClick={() => setActiveSection('themes')}>
+              Back to Installed Themes
+            </Button>
           </div>
 
           {marketplaceError && (
@@ -1414,7 +1586,7 @@ export function SettingsDialog({
             </div>
           )}
 
-          <article className="grid gap-4 rounded-lg border border-line/20 bg-surface p-3 xl:grid-cols-[minmax(360px,0.92fr)_minmax(560px,1.08fr)]">
+          <article className="grid gap-4 rounded-lg border border-line/20 bg-surface p-3 xl:grid-cols-[minmax(420px,0.65fr)_minmax(980px,1.7fr)] 2xl:grid-cols-[minmax(460px,0.55fr)_minmax(1180px,1.9fr)]">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -1538,12 +1710,33 @@ export function SettingsDialog({
                   <p style={{ fontFamily: themeBuilder.fontSerif }} className="text-xl font-semibold">Editorial: prompt titles and reading surfaces.</p>
                   <p style={{ fontFamily: themeBuilder.fontMono }} className="text-xs text-muted">Mono: metadata, tokens, and code-like values.</p>
                 </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {([
+                    ['fontSizeBase', 'Base font size'],
+                    ['lineHeightBody', 'Body line height'],
+                    ['lineHeightTight', 'Heading line height'],
+                    ['letterSpacingHeading', 'Heading letter spacing'],
+                    ['letterSpacingMeta', 'Meta letter spacing'],
+                    ['fontWeightRegular', 'Regular weight'],
+                    ['fontWeightMedium', 'Medium weight'],
+                    ['fontWeightSemibold', 'Semibold weight']
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">{label}</span>
+                      <input
+                        className="h-9 w-full border border-line/20 bg-surface2 px-2 font-mono outline-none focus:border-accent/10"
+                        value={themeBuilder[key]}
+                        onChange={(event) => setThemeBuilder((current) => ({ ...current, [key]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                </div>
               </details>
 
               <details open className="space-y-2">
-                <summary className="cursor-pointer text-sm font-semibold">Other</summary>
+                <summary className="cursor-pointer text-sm font-semibold">Layout, Effects & Notifications</summary>
                 <label className="block text-xs">
-                  <span className="mb-1 block font-medium text-muted">Radius</span>
+                  <span className="mb-1 block font-medium text-muted">Primary radius</span>
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
@@ -1552,11 +1745,42 @@ export function SettingsDialog({
                       step={0.05}
                       className="w-full accent-accent"
                       value={Number.parseFloat(themeBuilder.radius)}
-                      onChange={(event) => setThemeBuilder((current) => ({ ...current, radius: `${event.target.value}rem` }))}
+                      onChange={(event) =>
+                        setThemeBuilder((current) => ({
+                          ...current,
+                          radius: `${event.target.value}rem`,
+                          radiusMd: `${event.target.value}rem`
+                        }))
+                      }
                     />
                     <span className="w-14 text-right font-mono text-[10px] text-muted">{themeBuilder.radius}</span>
                   </div>
                 </label>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {([
+                    ['radiusSm', 'Radius small'],
+                    ['radiusMd', 'Radius medium'],
+                    ['radiusLg', 'Radius large'],
+                    ['radiusXl', 'Radius extra large'],
+                    ['controlHeightSm', 'Small control height'],
+                    ['controlHeightMd', 'Medium control height'],
+                    ['controlPaddingX', 'Control horizontal padding'],
+                    ['panelPadding', 'Panel padding'],
+                    ['panelGap', 'Panel gap'],
+                    ['sidebarWidth', 'Sidebar width'],
+                    ['scrollbarSize', 'Scrollbar size'],
+                    ['focusOutlineWidth', 'Focus outline width']
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">{label}</span>
+                      <input
+                        className="h-9 w-full border border-line/20 bg-surface2 px-2 font-mono outline-none focus:border-accent/10"
+                        value={themeBuilder[key]}
+                        onChange={(event) => setThemeBuilder((current) => ({ ...current, [key]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                </div>
                 <label className="block text-xs">
                   <span className="mb-1 block font-medium text-muted">Shadow</span>
                   <input
@@ -1565,6 +1789,26 @@ export function SettingsDialog({
                     onChange={(event) => setThemeBuilder((current) => ({ ...current, shadow: event.target.value }))}
                   />
                 </label>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {([
+                    ['ambientA', 'Ambient glow A'],
+                    ['ambientB', 'Ambient glow B'],
+                    ['ambientOverlay', 'Ambient overlay'],
+                    ['toastBg', 'Toast background'],
+                    ['toastText', 'Toast text'],
+                    ['toastMuted', 'Toast muted text'],
+                    ['toastBorder', 'Toast border']
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">{label}</span>
+                      <input
+                        className="h-9 w-full border border-line/20 bg-surface2 px-2 font-mono outline-none focus:border-accent/10"
+                        value={themeBuilder[key]}
+                        onChange={(event) => setThemeBuilder((current) => ({ ...current, [key]: event.target.value }))}
+                      />
+                    </label>
+                  ))}
+                </div>
               </details>
 
               <div className="flex flex-wrap gap-2">
@@ -1614,128 +1858,195 @@ export function SettingsDialog({
                 </button>
               </div>
 
-              <div className="grid gap-3 xl:grid-cols-[160px_1fr]">
+              <div className="grid min-h-[520px] gap-3 xl:grid-cols-[220px_minmax(300px,0.8fr)_minmax(460px,1.4fr)] 2xl:grid-cols-[240px_minmax(360px,0.85fr)_minmax(560px,1.55fr)]">
                 <aside
-                  className="space-y-2 p-3"
+                  className="flex flex-col overflow-hidden border"
                   style={{
-                    background: builderColors['--sidebar'],
-                    color: builderColors['--sidebar-foreground'],
-                    border: `1px solid ${builderColors['--sidebar-border']}`,
-                    borderRadius: themeBuilder.radius
+                    background: builderColors['--surface'],
+                    borderColor: builderColors['--border'],
+                    borderRadius: themeBuilder.radius,
+                    boxShadow: themeBuilder.shadow
                   }}
                 >
-                  <p className="mono-meta text-[10px] uppercase tracking-[0.18em]" style={{ color: builderColors['--text-muted'] }}>Sidebar</p>
-                  {['All Pages', 'Starred', 'Themes'].map((item, index) => (
-                    <div
-                      key={item}
-                      className="px-2 py-1.5 text-xs"
-                      style={{
-                        background: index === 0 ? builderColors['--sidebar-primary'] : index === 2 ? builderColors['--sidebar-accent'] : 'transparent',
-                        color: index === 0 ? builderColors['--accent-contrast'] : builderColors['--sidebar-foreground'],
-                        borderRadius: themeBuilder.radius
-                      }}
-                    >
-                      {item}
-                    </div>
-                  ))}
-                </aside>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div
-                    className="p-4"
-                    style={{
-                      background: builderColors['--surface'],
-                      border: `1px solid ${builderColors['--border']}`,
-                      borderRadius: themeBuilder.radius,
-                      boxShadow: themeBuilder.shadow
-                    }}
-                  >
-                    <p className="text-xs" style={{ color: builderColors['--text-muted'] }}>Card / Revenue</p>
-                    <p className="mt-1 text-2xl font-semibold" style={{ fontFamily: themeBuilder.fontSerif }}>$15,231.89</p>
-                    <div className="mt-5 flex h-20 items-end gap-2 border-t pt-4" style={{ borderColor: builderColors['--border'] }}>
-                      {[36, 48, 30, 42, 58, 34, 66].map((height, index) => (
-                        <span
-                          key={index}
-                          className="flex-1"
-                          style={{
-                            height,
-                            background: builderColors[`--chart-${(index % 5) + 1}` as keyof typeof builderColors],
-                            borderRadius: '2px'
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div
-                    className="p-4"
-                    style={{
-                      background: builderColors['--surface'],
-                      border: `1px solid ${builderColors['--border']}`,
-                      borderRadius: themeBuilder.radius,
-                      boxShadow: themeBuilder.shadow
-                    }}
-                  >
-                    <p className="text-lg font-semibold">Create an account</p>
-                    <p className="mt-1 text-xs" style={{ color: builderColors['--text-muted'] }}>Input, ring, popover, and primary action.</p>
-                    <input
-                      readOnly
-                      value="me@example.com"
-                      className="mt-3 h-9 w-full px-2 text-xs"
-                      style={{
-                        background: builderColors['--input'],
-                        border: `1px solid ${builderColors['--ring']}`,
-                        borderRadius: themeBuilder.radius,
-                        color: builderColors['--text']
-                      }}
-                    />
-                    <div
-                      className="mt-2 p-2 text-xs"
-                      style={{
-                        background: builderColors['--popover'],
-                        color: builderColors['--popover-foreground'],
-                        border: `1px solid ${builderColors['--border']}`,
-                        borderRadius: themeBuilder.radius
-                      }}
-                    >
-                      Popover: validation helper appears here.
-                    </div>
+                  <div className="border-b p-3" style={{ borderColor: builderColors['--border'] }}>
+                    <p className="text-sm font-semibold">AMP</p>
+                    <p className="mono-meta mt-1 text-[10px] uppercase tracking-[0.18em]" style={{ color: builderColors['--text-muted'] }}>
+                      All My Prompts
+                    </p>
                     <button
                       type="button"
-                      className="mt-3 h-9 w-full text-xs font-semibold"
+                      className="mt-3 h-8 w-full text-xs font-semibold"
                       style={{
                         background: builderColors['--accent'],
                         color: builderColors['--accent-contrast'],
                         borderRadius: themeBuilder.radius
                       }}
                     >
-                      Create account
+                      New Prompt
                     </button>
                   </div>
+                  <div className="space-y-1 p-3 text-xs">
+                    {['All prompts', 'Ready', 'Drafting', 'Templates'].map((item, index) => (
+                      <div
+                        key={item}
+                        className="flex items-center justify-between px-2 py-1.5"
+                        style={{
+                          background: index === 0 ? builderColors['--surface-2'] : 'transparent',
+                          borderRadius: themeBuilder.radius,
+                          color: index === 0 ? builderColors['--text'] : builderColors['--text-muted']
+                        }}
+                      >
+                        <span>{item}</span>
+                        {index < 3 && <span style={{ color: builderColors['--text-muted'] }}>{[12, 8, 4][index]}</span>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-auto border-t p-3 text-xs" style={{ borderColor: builderColors['--border'] }}>
+                    {['Share / Import', 'Marketplace', 'Settings'].map((item) => (
+                      <div key={item} className="px-2 py-1.5" style={{ color: builderColors['--text-muted'] }}>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                </aside>
 
-                  <div
-                    className="md:col-span-2 p-4"
-                    style={{
-                      background: builderColors['--surface'],
-                      border: `1px solid ${builderColors['--border']}`,
-                      borderRadius: themeBuilder.radius,
-                      boxShadow: themeBuilder.shadow
-                    }}
-                  >
-                    <p className="text-lg font-semibold">Status States</p>
-                    <div className="mt-3 grid gap-2 md:grid-cols-3">
+                <section
+                  className="flex flex-col overflow-hidden border"
+                  style={{
+                    background: builderColors['--surface'],
+                    borderColor: builderColors['--border'],
+                    borderRadius: themeBuilder.radius,
+                    boxShadow: themeBuilder.shadow
+                  }}
+                >
+                  <div className="border-b p-3" style={{ borderColor: builderColors['--border'] }}>
+                    <div
+                      className="flex h-9 items-center gap-2 px-2 text-xs"
+                      style={{
+                        background: builderColors['--surface-2'],
+                        border: `1px solid ${builderColors['--border']}`,
+                        borderRadius: themeBuilder.radius,
+                        color: builderColors['--text-muted']
+                      }}
+                    >
+                      Search prompts...
+                    </div>
+                  </div>
+                  <div className="space-y-2 p-3">
+                    {['Marketplace launch copy', 'Theme install flow', 'Admin dashboard notes'].map((item, index) => (
+                      <article
+                        key={item}
+                        className="p-3 text-xs"
+                        style={{
+                          background: index === 0 ? builderColors['--surface-2'] : builderColors['--surface'],
+                          border: `1px solid ${index === 0 ? builderColors['--ring'] : builderColors['--border']}`,
+                          borderRadius: themeBuilder.radius
+                        }}
+                      >
+                        <p className="font-semibold" style={{ fontFamily: themeBuilder.fontSerif }}>{item}</p>
+                        <p className="mt-1" style={{ color: builderColors['--text-muted'] }}>
+                          Prompt preview, tags, quality score, and metadata.
+                        </p>
+                        <div className="mt-2 flex gap-1.5">
+                          {['amp', 'theme'].map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-1.5 py-0.5 text-[10px]"
+                              style={{
+                                background: builderColors['--surface'],
+                                border: `1px solid ${builderColors['--border']}`,
+                                borderRadius: themeBuilder.radius,
+                                color: builderColors['--text-muted']
+                              }}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                <section
+                  className="flex flex-col overflow-hidden border"
+                  style={{
+                    background: builderColors['--surface'],
+                    borderColor: builderColors['--border'],
+                    borderRadius: themeBuilder.radius,
+                    boxShadow: themeBuilder.shadow
+                  }}
+                >
+                  <div className="flex items-center justify-between border-b p-3" style={{ borderColor: builderColors['--border'] }}>
+                    <div>
+                      <p className="text-lg font-semibold" style={{ fontFamily: themeBuilder.fontSerif }}>Theme install flow</p>
+                      <p className="text-xs" style={{ color: builderColors['--text-muted'] }}>
+                        Editor, fields, status states, and themed prompts.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="h-8 px-3 text-xs font-semibold"
+                      style={{
+                        background: builderColors['--accent'],
+                        color: builderColors['--accent-contrast'],
+                        borderRadius: themeBuilder.radius
+                      }}
+                    >
+                      Save
+                    </button>
+                  </div>
+                  <div className="grid gap-3 p-3 md:grid-cols-[1fr_170px]">
+                    <div className="space-y-3">
+                      <label className="block text-xs">
+                        <span className="mb-1 block font-semibold">Prompt title</span>
+                        <input
+                          readOnly
+                          value="Theme install flow"
+                          className="h-9 w-full px-2"
+                          style={{
+                            background: builderColors['--input'],
+                            border: `1px solid ${builderColors['--ring']}`,
+                            borderRadius: themeBuilder.radius,
+                            color: builderColors['--text']
+                          }}
+                        />
+                      </label>
+                      <div
+                        className="min-h-28 p-3 text-xs leading-5"
+                        style={{
+                          background: builderColors['--input'],
+                          border: `1px solid ${builderColors['--border']}`,
+                          borderRadius: themeBuilder.radius,
+                          color: builderColors['--text']
+                        }}
+                      >
+                        Write a clear installation prompt that confirms the theme was added, then asks whether to make it active.
+                      </div>
+                      <div
+                        className="p-3 text-xs"
+                        style={{
+                          background: builderColors['--popover'],
+                          color: builderColors['--popover-foreground'],
+                          border: `1px solid ${builderColors['--border']}`,
+                          borderRadius: themeBuilder.radius
+                        }}
+                      >
+                        Themed popover: make this your active theme?
+                      </div>
+                    </div>
+                    <div className="space-y-2">
                       {([
-                        ['--success', 'Success', 'Prompt validated and ready.'],
-                        ['--warning', 'Warning', 'Missing target or use case.'],
-                        ['--danger', 'Danger', 'Delete or destructive action.']
+                        ['--success', 'Installed', 'Theme added to Settings.'],
+                        ['--warning', 'Review', 'Manifest needs screenshot.'],
+                        ['--danger', 'Remove', 'Delete marketplace theme.']
                       ] as const).map(([token, label, text]) => (
                         <div
                           key={token}
-                          className="p-3 text-xs"
+                          className="p-2 text-xs"
                           style={{
                             background: `${builderColors[token]}22`,
                             border: `1px solid ${builderColors[token]}`,
-                            color: builderColors['--text'],
                             borderRadius: themeBuilder.radius
                           }}
                         >
@@ -1745,7 +2056,7 @@ export function SettingsDialog({
                       ))}
                     </div>
                   </div>
-                </div>
+                </section>
               </div>
 
               <div className="mt-4">
@@ -1839,22 +2150,22 @@ export function SettingsDialog({
             <div className="grid gap-2 md:grid-cols-[1fr_auto]">
               <input
                 className="h-9 w-full rounded-lg border border-line/20 bg-surface2 px-3 text-xs outline-none focus:border-accent/10"
-                placeholder="Marketplace JSON URL (https://...)"
-                value={themeMarketplaceUrl}
-                onChange={(event) => setThemeMarketplaceUrl(event.target.value)}
+                placeholder="Marketplace theme code (amp-theme:...)"
+                value={themeMarketplaceCode}
+                onChange={(event) => setThemeMarketplaceCode(event.target.value)}
               />
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={busyKey === 'theme-import-url'}
+                disabled={busyKey === 'theme-import-code'}
                 onClick={async () =>
-                  loadManifestFromUrl('theme-import-url', themeMarketplaceUrl, (payload) => {
+                  loadManifestFromCode('theme-import-code', themeMarketplaceCode, 'theme', (payload) => {
                     setThemeManifestJson(payload)
                     setEditingThemeId(null)
                   })
                 }
               >
-                Load URL
+                Load Code
               </Button>
             </div>
             <textarea
@@ -1870,7 +2181,7 @@ export function SettingsDialog({
                 disabled={busyKey === 'register-theme'}
                 onClick={async () =>
                   runAction('register-theme', async () => {
-                    const manifest = parseManifestJson<CreateThemeManifestInput>(themeManifestJson)
+                    const manifest = parseThemeManifestJson(themeManifestJson)
                     await onRegisterTheme(manifest)
                     setThemeManifestJson('')
                     setEditingThemeId(null)
@@ -1878,6 +2189,18 @@ export function SettingsDialog({
                 }
               >
                 {editingThemeId ? 'Update Theme' : 'Save Theme'}
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'theme-copy-code'}
+                onClick={async () =>
+                  runAction('theme-copy-code', async () => {
+                    await copyMarketplaceCode('theme', themeManifestJson)
+                  })
+                }
+              >
+                Copy Code
               </Button>
               {editingThemeId && (
                 <Button
@@ -1895,6 +2218,7 @@ export function SettingsDialog({
             </div>
           </article>
 
+          {false && (
           <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
             <p className="text-sm font-semibold">Installed Themes</p>
             {marketplaceState.themes.length === 0 ? (
@@ -1992,17 +2316,18 @@ export function SettingsDialog({
               </div>
             )}
           </article>
+          )}
         </section>
       )}
     </div>
   )
 
   if (asPage) {
-    return <section className="mx-auto w-full max-w-7xl">{body}</section>
+    return <section className="mx-auto w-full max-w-[1800px]">{body}</section>
   }
 
   return (
-    <Modal open={open} onClose={onClose ?? (() => undefined)} title="Settings" widthClass="max-w-7xl">
+    <Modal open={open} onClose={onClose ?? (() => undefined)} title="Settings" widthClass="max-w-[98vw]">
       {body}
     </Modal>
   )

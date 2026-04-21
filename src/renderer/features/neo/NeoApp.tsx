@@ -44,14 +44,22 @@ interface NeoAppProps {
   latestUpdated: string | null
   selectedPromptId: string | null
   validatingPromptId: string | null
+  marketplaceOpen: boolean
+  marketplaceUrl: string
+  marketplaceLoadKey: number
+  marketplaceStatus: 'loading' | 'ready' | 'error'
   onSelectPromptId: (id: string | null) => void
   onSelectTag: (tag: string | null) => void
   onCreatePrompt: () => void
   onOpenShareImport: () => void
+  onOpenWorkspace: () => void
   onOpenSettings: () => void
   onOpenAbout: () => void
   onOpenTos: () => void
   onOpenMarketplace: () => void
+  onRetryMarketplace: () => void
+  onMarketplaceLoad: () => void
+  onMarketplaceError: () => void
   onCheckForUpdates: () => void
   onCopyPrompt: (prompt: PromptDTO) => Promise<void>
   onSavePrompt: (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => Promise<void>
@@ -168,14 +176,22 @@ export function NeoApp({
   latestUpdated,
   selectedPromptId,
   validatingPromptId,
+  marketplaceOpen,
+  marketplaceUrl,
+  marketplaceLoadKey,
+  marketplaceStatus,
   onSelectPromptId,
   onSelectTag,
   onCreatePrompt,
   onOpenShareImport,
+  onOpenWorkspace,
   onOpenSettings,
   onOpenAbout,
   onOpenTos,
   onOpenMarketplace,
+  onRetryMarketplace,
+  onMarketplaceLoad,
+  onMarketplaceError,
   onCheckForUpdates,
   onCopyPrompt,
   onSavePrompt,
@@ -197,6 +213,7 @@ export function NeoApp({
   const [isCreatingFolder, setIsCreatingFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [projectsCollapsed, setProjectsCollapsed] = useState(false)
+  const [tagsSectionCollapsed, setTagsSectionCollapsed] = useState(false)
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({})
   const [customFolders, setCustomFolders] = useState<string[]>([])
   const [draggedPromptId, setDraggedPromptId] = useState<string | null>(null)
@@ -207,6 +224,7 @@ export function NeoApp({
   const folderStorageKey = `ampnotes.neo.custom-folders.v1:${profileId}`
   const folderCollapseStorageKey = `ampnotes.neo.folder-collapse.v1:${profileId}`
   const projectsCollapsedStorageKey = `ampnotes.neo.projects-collapsed.v1:${profileId}`
+  const tagsSectionCollapsedStorageKey = `ampnotes.neo.tags-section-collapsed.v1:${profileId}`
   const tagFolderStorageKey = `ampnotes.neo.tag-folders.v1:${profileId}`
 
   useEffect(() => {
@@ -258,6 +276,8 @@ export function NeoApp({
 
     const rawProjectsCollapsed = readLocalStorage(projectsCollapsedStorageKey)
     setProjectsCollapsed(rawProjectsCollapsed === '1')
+    const rawTagsSectionCollapsed = readLocalStorage(tagsSectionCollapsedStorageKey)
+    setTagsSectionCollapsed(rawTagsSectionCollapsed === '1')
 
     try {
       const rawTagFolders = readLocalStorage(tagFolderStorageKey)
@@ -288,7 +308,13 @@ export function NeoApp({
       setTagFolderMap({})
     }
     setHydratedStorageKey(profileId)
-  }, [folderCollapseStorageKey, folderStorageKey, projectsCollapsedStorageKey, tagFolderStorageKey])
+  }, [
+    folderCollapseStorageKey,
+    folderStorageKey,
+    projectsCollapsedStorageKey,
+    tagFolderStorageKey,
+    tagsSectionCollapsedStorageKey
+  ])
 
   useEffect(() => {
     if (hydratedStorageKey !== profileId) {
@@ -310,6 +336,13 @@ export function NeoApp({
     }
     writeLocalStorage(projectsCollapsedStorageKey, projectsCollapsed ? '1' : '0')
   }, [projectsCollapsed, projectsCollapsedStorageKey, hydratedStorageKey, profileId])
+
+  useEffect(() => {
+    if (hydratedStorageKey !== profileId) {
+      return
+    }
+    writeLocalStorage(tagsSectionCollapsedStorageKey, tagsSectionCollapsed ? '1' : '0')
+  }, [hydratedStorageKey, profileId, tagsSectionCollapsed, tagsSectionCollapsedStorageKey])
 
   useEffect(() => {
     if (hydratedStorageKey !== profileId) {
@@ -516,35 +549,47 @@ export function NeoApp({
     })
   }
 
+  const sideActions = (
+    <div className="border-t border-line/20 px-3 py-3">
+      <p className="mono-meta mb-1 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">App</p>
+      <div className="space-y-0.5">
+        {marketplaceOpen ? (
+          <button type="button" className={navRowClass(false)} onClick={onOpenWorkspace}>
+            <FolderOpen size={14} />
+            <span className="truncate">Workspace</span>
+          </button>
+        ) : null}
+        <button type="button" className={navRowClass(false)} onClick={onOpenShareImport}>
+          <Import size={14} />
+          <span className="truncate">Share / Import</span>
+        </button>
+        <button type="button" className={navRowClass(marketplaceOpen)} onClick={onOpenMarketplace}>
+          <ArrowUpRight size={14} />
+          <span className="truncate">Marketplace</span>
+        </button>
+        <button type="button" className={navRowClass(false)} onClick={onCheckForUpdates}>
+          <ChevronsUpDown size={14} />
+          <span className="truncate">Check updates</span>
+        </button>
+        <button type="button" className={navRowClass(false)} onClick={onOpenSettings}>
+          <Settings2 size={14} />
+          <span className="truncate">Settings</span>
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="neo-root flex h-full min-h-0 flex-col bg-bg">
       <header
-        className="flex h-11 shrink-0 items-center justify-between border-b border-line/20 bg-surface px-3"
+        className="flex h-14 shrink-0 items-center justify-between border-b border-line/20 bg-surface px-4"
         style={{ WebkitAppRegion: 'drag' } as CSSProperties}
       >
         <div className="flex min-w-0 items-center gap-3">
-          <img src={ampLogoUrl} alt="AMP" className="h-6 w-6 object-contain" />
+          <img src={ampLogoUrl} alt="AMP" className="h-9 w-9 object-contain" />
           <span className="mono-meta text-xs uppercase tracking-[0.16em] text-muted">AMP</span>
         </div>
         <div className="ml-auto flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
-          <nav className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}>
-            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onOpenShareImport}>
-              <Import size={14} className="text-iconMuted" />
-              Share / Import
-            </button>
-            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onOpenMarketplace}>
-              <ArrowUpRight size={14} className="text-iconMuted" />
-              Marketplace
-            </button>
-            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onCheckForUpdates}>
-              <ChevronsUpDown size={14} className="text-iconMuted" />
-              Check updates
-            </button>
-            <button type="button" className="inline-flex h-8 items-center gap-1.5 px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-text" onClick={onOpenSettings}>
-              <Settings2 size={14} className="text-iconMuted" />
-              Settings
-            </button>
-          </nav>
           <div className="flex items-center">
           <button
             type="button"
@@ -573,7 +618,54 @@ export function NeoApp({
           </div>
         </div>
       </header>
-      <main className="grid min-h-0 flex-1 gap-3 p-3 xl:grid-cols-[280px_minmax(0,1fr)]">
+      {marketplaceOpen ? (
+        <main className="grid min-h-0 flex-1 gap-[var(--panel-gap)] p-[var(--panel-padding)] xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
+          <aside className="neo-panel flex min-h-0 flex-col overflow-hidden border border-line/20 bg-surface">
+            <div className="border-b border-line/20 px-4 py-4">
+              <div className="flex items-center gap-3">
+                <img src={ampLogoUrl} alt="AMP Logo" className="w-12" />
+                <div>
+                  <p className="mono-meta text-xs uppercase tracking-[0.22em] text-muted">AMP</p>
+                  <h1 className="editorial-heading truncate text-[1.5rem] font-semibold leading-tight text-text">Marketplace</h1>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1" />
+            {sideActions}
+          </aside>
+          <section className="neo-panel relative flex h-full min-h-0 overflow-hidden border border-line/20 bg-surface">
+            <iframe
+              key={marketplaceLoadKey}
+              title="AMP Marketplace"
+              src={marketplaceUrl}
+              className="min-h-0 flex-1 border-0 bg-bg"
+              onLoad={onMarketplaceLoad}
+              onError={onMarketplaceError}
+            />
+            {marketplaceStatus !== 'ready' ? (
+              <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg/80">
+                <div className="pointer-events-auto max-w-md rounded-xl border border-line/20 bg-surface p-5 text-center shadow-panel">
+                  <h3 className="editorial-heading text-xl font-semibold">
+                    {marketplaceStatus === 'error' ? 'Marketplace could not load' : 'Opening marketplace...'}
+                  </h3>
+                  <p className="mt-2 text-sm text-muted">
+                    Make sure the marketplace site is running locally before opening this page.
+                  </p>
+                  <div className="mt-4 flex justify-center gap-2">
+                    <Button variant="secondary" onClick={onRetryMarketplace}>
+                      Retry
+                    </Button>
+                    <Button variant="secondary" onClick={() => window.open(marketplaceUrl, '_blank', 'noopener,noreferrer')}>
+                      Open browser
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </main>
+      ) : (
+      <main className="grid min-h-0 flex-1 gap-[var(--panel-gap)] p-[var(--panel-padding)] xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)]">
         <aside className="neo-panel flex min-h-0 flex-col overflow-hidden border border-line/20 bg-surface">
           <div className="border-b border-line/20 px-4 py-4">
             <div className="flex items-center gap-3">
@@ -631,8 +723,19 @@ export function NeoApp({
 
             <div className="mt-4 border-t border-line/20 pt-4">
               <div className="mb-1 flex items-center justify-between gap-2 px-2">
-                <p className="mono-meta text-[10px] uppercase tracking-[0.18em] text-muted">Tags</p>
+                <button
+                  type="button"
+                  className="inline-flex min-w-0 items-center gap-1.5 rounded-md text-left transition-colors hover:text-text"
+                  onClick={() => setTagsSectionCollapsed((prev) => !prev)}
+                  title={tagsSectionCollapsed ? 'Open tags' : 'Close tags'}
+                >
+                  <ChevronRight size={13} className={tagsSectionCollapsed ? '' : 'rotate-90'} />
+                  <span className="mono-meta text-[10px] uppercase tracking-[0.18em] text-muted">Tags</span>
+                  <span className="text-[10px] text-muted">{tags.length}</span>
+                </button>
                 <div className="inline-flex items-center gap-1">
+                  {!tagsSectionCollapsed && (
+                    <>
                     <button
                       type="button"
                       className="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-text"
@@ -667,9 +770,11 @@ export function NeoApp({
                     >
                       <FolderPlus size={13} />
                     </button>
+                    </>
+                  )}
                   </div>
                 </div>
-                {showProjectFilter && (
+                {!tagsSectionCollapsed && showProjectFilter && (
                   <div className="mb-2 px-2">
                     <div className="flex items-center gap-2 rounded-md border border-line/20 bg-surface2 px-2">
                       <Filter size={12} className="text-muted" />
@@ -691,7 +796,7 @@ export function NeoApp({
                     </div>
                   </div>
                 )}
-                {isCreatingFolder && (
+                {!tagsSectionCollapsed && isCreatingFolder && (
                   <div className="mb-2 space-y-2 px-2">
                     <input
                       value={newFolderName}
@@ -746,50 +851,15 @@ export function NeoApp({
                     </div>
                   </div>
                 )}
-                <div className="space-y-1.5">
-                  {folderGroups.length === 0 && !isCreatingFolder && (
-                    <p className="px-2 py-1 text-[11px] text-muted">No tag folders yet. Click the + icon to create one.</p>
-                  )}
-                  {folderGroups.map((group) => (
-                    <div
-                      key={group.name}
-                      onDragEnter={(event) => {
-                        event.preventDefault()
-                      }}
-                      onDragOver={(event) => {
-                        event.preventDefault()
-                        event.dataTransfer.dropEffect = 'copy'
-                      }}
-                      onDrop={(event) => {
-                        event.preventDefault()
-                        const dropTag = event.dataTransfer.getData('text/ampnotes-tag')
-                        if (dropTag) {
-                          moveTagToFolder(dropTag, group.name)
-                          setCollapsedFolders((prev) => ({ ...prev, [group.name]: false }))
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          className="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-text"
-                          title={collapsedFolders[group.name] || projectsCollapsed ? 'Expand folder' : 'Collapse folder'}
-                          onClick={() =>
-                            setCollapsedFolders((prev) => ({
-                              ...prev,
-                              [group.name]: !(prev[group.name] ?? false)
-                            }))
-                          }
-                        >
-                          <ChevronRight
-                            size={12}
-                            className={collapsedFolders[group.name] || projectsCollapsed ? '' : 'rotate-90'}
-                          />
-                        </button>
-                        <button
-                          type="button"
-                          className={navRowClass(lane === `folder:${group.name}`)}
-                          onClick={() => setLane(`folder:${group.name}`)}
+                {!tagsSectionCollapsed && (
+                  <>
+                    <div className="space-y-1.5">
+                      {folderGroups.length === 0 && !isCreatingFolder && (
+                        <p className="px-2 py-1 text-[11px] text-muted">No tag folders yet. Click the + icon to create one.</p>
+                      )}
+                      {folderGroups.map((group) => (
+                        <div
+                          key={group.name}
                           onDragEnter={(event) => {
                             event.preventDefault()
                           }}
@@ -803,76 +873,114 @@ export function NeoApp({
                             if (dropTag) {
                               moveTagToFolder(dropTag, group.name)
                               setCollapsedFolders((prev) => ({ ...prev, [group.name]: false }))
-                              return
                             }
-                            const dropPromptId = event.dataTransfer.getData('text/ampnotes-prompt-id') || draggedPromptId
-                            if (!dropPromptId) {
-                              return
-                            }
-                            void movePromptToFolder(dropPromptId, group.name)
-                            setDraggedPromptId(null)
                           }}
                         >
-                          <Folder size={14} />
-                          <span className="truncate">{group.name}</span>
-                          <span className="ml-auto text-xs text-muted">
-                            {group.tags.length}
-                          </span>
-                        </button>
-                      </div>
-                      {!projectsCollapsed && !collapsedFolders[group.name] && (
-                        <div className="mt-0.5 space-y-0.5 pl-7">
-                          {group.tags.length === 0 ? (
-                            <p className="px-2 py-1 text-[11px] text-muted">No tags yet</p>
-                          ) : (
-                            group.tags.map((tagName) => {
-                              const tag = tags.find((item) => item.name === tagName)
-                              return (
-                              <button
-                                key={`${group.name}-${tagName}`}
-                                type="button"
-                                className={navSubRowClass(activeTag === tagName)}
-                                draggable
-                                onDragStart={(event) => {
-                                  event.dataTransfer.effectAllowed = 'copy'
-                                  event.dataTransfer.setData('text/ampnotes-tag', tagName)
-                                }}
-                                onClick={() => {
-                                  setLane(`folder:${group.name}`)
-                                  onSelectTag(tagName)
-                                }}
-                              >
-                                <span className="truncate">#{tagName}</span>
-                                <span className="ml-auto text-[11px] text-muted">{tag?.count ?? 0}</span>
-                              </button>
-                              )
-                            })
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="grid h-6 w-6 place-items-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-text"
+                              title={collapsedFolders[group.name] || projectsCollapsed ? 'Expand folder' : 'Collapse folder'}
+                              onClick={() =>
+                                setCollapsedFolders((prev) => ({
+                                  ...prev,
+                                  [group.name]: !(prev[group.name] ?? false)
+                                }))
+                              }
+                            >
+                              <ChevronRight
+                                size={12}
+                                className={collapsedFolders[group.name] || projectsCollapsed ? '' : 'rotate-90'}
+                              />
+                            </button>
+                            <button
+                              type="button"
+                              className={navRowClass(lane === `folder:${group.name}`)}
+                              onClick={() => setLane(`folder:${group.name}`)}
+                              onDragEnter={(event) => {
+                                event.preventDefault()
+                              }}
+                              onDragOver={(event) => {
+                                event.preventDefault()
+                                event.dataTransfer.dropEffect = 'copy'
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault()
+                                const dropTag = event.dataTransfer.getData('text/ampnotes-tag')
+                                if (dropTag) {
+                                  moveTagToFolder(dropTag, group.name)
+                                  setCollapsedFolders((prev) => ({ ...prev, [group.name]: false }))
+                                  return
+                                }
+                                const dropPromptId = event.dataTransfer.getData('text/ampnotes-prompt-id') || draggedPromptId
+                                if (!dropPromptId) {
+                                  return
+                                }
+                                void movePromptToFolder(dropPromptId, group.name)
+                                setDraggedPromptId(null)
+                              }}
+                            >
+                              <Folder size={14} />
+                              <span className="truncate">{group.name}</span>
+                              <span className="ml-auto text-xs text-muted">{group.tags.length}</span>
+                            </button>
+                          </div>
+                          {!projectsCollapsed && !collapsedFolders[group.name] && (
+                            <div className="mt-0.5 space-y-0.5 pl-7">
+                              {group.tags.length === 0 ? (
+                                <p className="px-2 py-1 text-[11px] text-muted">No tags yet</p>
+                              ) : (
+                                group.tags.map((tagName) => {
+                                  const tag = tags.find((item) => item.name === tagName)
+                                  return (
+                                    <button
+                                      key={`${group.name}-${tagName}`}
+                                      type="button"
+                                      className={navSubRowClass(activeTag === tagName)}
+                                      draggable
+                                      onDragStart={(event) => {
+                                        event.dataTransfer.effectAllowed = 'copy'
+                                        event.dataTransfer.setData('text/ampnotes-tag', tagName)
+                                      }}
+                                      onClick={() => {
+                                        setLane(`folder:${group.name}`)
+                                        onSelectTag(tagName)
+                                      }}
+                                    >
+                                      <span className="truncate">#{tagName}</span>
+                                      <span className="ml-auto text-[11px] text-muted">{tag?.count ?? 0}</span>
+                                    </button>
+                                  )
+                                })
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="mt-2 space-y-0.5">
-                {looseTags.map((tag) => (
-                  <button
-                    key={tag.name}
-                    type="button"
-                    className={navRowClass(activeTag === tag.name)}
-                    onClick={() => onSelectTag(tag.name)}
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.effectAllowed = 'copy'
-                      event.dataTransfer.setData('text/ampnotes-tag', tag.name)
-                    }}
-                  >
-                    <span className="truncate">#{tag.name}</span>
-                    <span className="ml-auto text-xs text-muted">{tag.count}</span>
-                  </button>
-                ))}
-              </div>
+                    <div className="mt-2 space-y-0.5">
+                      {looseTags.map((tag) => (
+                        <button
+                          key={tag.name}
+                          type="button"
+                          className={navRowClass(activeTag === tag.name)}
+                          onClick={() => onSelectTag(tag.name)}
+                          draggable
+                          onDragStart={(event) => {
+                            event.dataTransfer.effectAllowed = 'copy'
+                            event.dataTransfer.setData('text/ampnotes-tag', tag.name)
+                          }}
+                        >
+                          <span className="truncate">#{tag.name}</span>
+                          <span className="ml-auto text-xs text-muted">{tag.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
             </div>
           </div>
+          {sideActions}
 
         </aside>
 
@@ -1021,6 +1129,7 @@ export function NeoApp({
           </section>
         </div>
       </main>
+      )}
       <footer className="flex h-8 shrink-0 items-center bg-surface px-4 text-xs text-muted">
         <span>© 2026 AMP</span>
         <div className="ml-auto flex items-center gap-3">

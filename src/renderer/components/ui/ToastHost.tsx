@@ -12,10 +12,13 @@ interface ToastHostProps {
 }
 
 const toneStyles: Record<NonNullable<AppToast['tone']>, string> = {
-  info: 'border-line/20 bg-surface text-text',
-  success: 'border-success/20 bg-success/12 text-text',
-  warning: 'border-warning/20 bg-warning/12 text-text',
-  danger: 'border-danger/20 bg-danger/14 text-text'
+  info: 'border-[color:var(--toast-border)] bg-[color:var(--toast-bg)] text-[color:var(--toast-text)]',
+  success:
+    'border-success/55 bg-[color:var(--toast-bg)] text-[color:var(--toast-text)] shadow-[0_0_0_1px_rgba(30,138,102,0.16)]',
+  warning:
+    'border-warning/60 bg-[color:var(--toast-bg)] text-[color:var(--toast-text)] shadow-[0_0_0_1px_rgba(155,106,45,0.16)]',
+  danger:
+    'border-danger/60 bg-[color:var(--toast-bg)] text-[color:var(--toast-text)] shadow-[0_0_0_1px_rgba(165,72,66,0.16)]'
 }
 
 export function ToastHost({ toasts, onClose }: ToastHostProps) {
@@ -24,21 +27,22 @@ export function ToastHost({ toasts, onClose }: ToastHostProps) {
   }
 
   return (
-    <aside className="pointer-events-none fixed right-4 top-4 z-[120] flex w-[min(92vw,420px)] flex-col gap-2">
+    <aside className="pointer-events-none fixed bottom-5 right-5 z-[120] flex w-[min(92vw,480px)] flex-col gap-3">
       {toasts.map((toast) => (
         <section
           key={toast.id}
-          className={`pointer-events-auto relative overflow-hidden rounded-lg border px-4 py-3 shadow-panel ${toneStyles[toast.tone ?? 'info']} animate-[toastSlideIn_240ms_ease-out]`}
+          className={`pointer-events-auto relative overflow-hidden rounded-xl border px-5 py-4 shadow-panel ${toneStyles[toast.tone ?? 'info']} animate-[toastSlideIn_240ms_ease-out]`}
         >
           <button
-            className="absolute right-2 top-2 rounded p-1 text-muted hover:bg-surface2 hover:text-text"
+            className="absolute right-3 top-3 rounded p-1 opacity-75 transition hover:opacity-100"
+            style={{ color: 'var(--toast-muted)' }}
             onClick={() => onClose(toast.id)}
             type="button"
             aria-label="Close notification"
           >
-            <X size={15} />
+            <X size={17} />
           </button>
-          <p className="pr-7 text-sm font-medium">{toast.message}</p>
+          <p className="pr-8 text-base font-semibold leading-relaxed">{toast.message}</p>
         </section>
       ))}
     </aside>

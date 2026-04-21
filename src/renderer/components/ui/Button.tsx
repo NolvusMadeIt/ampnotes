@@ -18,8 +18,8 @@ const variantStyles: Record<ButtonVariant, string> = {
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-sm',
-  md: 'h-9 px-3.5 text-sm'
+  sm: 'h-[var(--control-height-sm)] px-[var(--control-padding-x)] text-sm',
+  md: 'h-[var(--control-height-md)] px-[calc(var(--control-padding-x)*1.15)] text-sm'
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

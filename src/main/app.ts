@@ -36,7 +36,7 @@ export async function bootstrapApp(): Promise<void> {
 
   const win = createMainWindow()
   setTimeout(() => {
-    void checkForUpdates(win, true)
+    void checkForUpdates(true)
   }, 5000)
   setProtocolHandler(async (url) => {
     await handleInstallDeepLink(url, profileRepo, settingsRepo)

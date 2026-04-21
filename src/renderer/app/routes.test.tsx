@@ -108,6 +108,7 @@ function buildApiMock() {
         activeThemeId: null
       }),
       onDeepLinkInstalled: vi.fn().mockReturnValue(() => undefined),
+      onDeepLinkNotice: vi.fn().mockReturnValue(() => undefined),
       registerPlugin: vi.fn(),
       setPluginEnabled: vi.fn(),
       removePlugin: vi.fn(),

@@ -180,6 +180,11 @@ export interface MarketplaceDeepLinkInstalledEvent {
   active?: boolean
 }
 
+export interface MarketplaceDeepLinkNoticeEvent {
+  tone: 'info' | 'success' | 'warning' | 'danger'
+  message: string
+}
+
 export interface CreatePromptInput {
   title: string
   content: string
