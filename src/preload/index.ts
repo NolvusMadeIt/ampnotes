@@ -111,6 +111,15 @@ const api: ApiClient = {
       return () => {
         ipcRenderer.removeListener('marketplace.deepLinkInstalled', listener)
       }
+    },
+    onDeepLinkNotice: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        callback(payload as Parameters<typeof callback>[0])
+      }
+      ipcRenderer.on('marketplace.deepLinkNotice', listener)
+      return () => {
+        ipcRenderer.removeListener('marketplace.deepLinkNotice', listener)
+      }
     }
   }
 }

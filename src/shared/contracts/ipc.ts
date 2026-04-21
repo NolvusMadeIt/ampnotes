@@ -85,25 +85,161 @@ const exportCreditsSchema = z.object({
   socials: socialLinksSchema.optional()
 })
 
-export const pluginManifestSchema = z.object({
+const marketplaceManifestMetadataSchema = z.object({
+  schemaVersion: z.literal(1).optional(),
+  compatibility: z.string().trim().min(1).max(80).optional(),
+  screenshot: z
+    .string()
+    .trim()
+    .min(1)
+    .max(240)
+    .regex(/^(https:\/\/|\/)[^\s<>]+$/i, 'Screenshot must be an HTTPS URL or marketplace-relative path')
+    .optional()
+})
+
+const colorTokenNames = new Set([
+  '--bg',
+  '--surface',
+  '--surface-2',
+  '--text',
+  '--text-muted',
+  '--icon',
+  '--icon-muted',
+  '--border',
+  '--popover',
+  '--popover-foreground',
+  '--input',
+  '--ring',
+  '--accent',
+  '--accent-contrast',
+  '--success',
+  '--warning',
+  '--danger',
+  '--ambient-a',
+  '--ambient-b',
+  '--ambient-overlay',
+  '--toast-bg',
+  '--toast-text',
+  '--toast-muted',
+  '--toast-border'
+])
+
+const lengthTokenNames = new Set([
+  '--radius-sm',
+  '--radius-md',
+  '--radius-lg',
+  '--radius-xl',
+  '--font-size-base',
+  '--letter-spacing-heading',
+  '--letter-spacing-meta',
+  '--control-height-sm',
+  '--control-height-md',
+  '--control-padding-x',
+  '--panel-padding',
+  '--panel-gap',
+  '--sidebar-width',
+  '--scrollbar-size',
+  '--focus-outline-width'
+])
+
+const numberTokenNames = new Set(['--line-height-body', '--line-height-tight'])
+const fontWeightTokenNames = new Set(['--font-weight-regular', '--font-weight-medium', '--font-weight-semibold'])
+const fontFamilyTokenNames = new Set(['--font-sans', '--font-serif', '--font-mono'])
+const shadowTokenNames = new Set(['--shadow-panel'])
+const allowedThemeTokenNames = new Set([
+  ...colorTokenNames,
+  ...lengthTokenNames,
+  ...numberTokenNames,
+  ...fontWeightTokenNames,
+  ...fontFamilyTokenNames,
+  ...shadowTokenNames
+])
+
+const safeCssValueSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(240)
+  .refine((value) => !/[;{}<>]/.test(value), 'Theme token values cannot contain CSS blocks or HTML')
+  .refine((value) => !/url\s*\(|expression\s*\(|@import/i.test(value), 'Theme token values cannot load external resources')
+
+function isColorValue(value: string): boolean {
+  return /^(#[0-9a-f]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|color-mix\([^)]+\)|transparent|currentcolor|[a-z]+)$/i.test(
+    value
+  )
+}
+
+function isLengthValue(value: string): boolean {
+  return /^(0|-?\d+(\.\d+)?(px|rem|em|%|vw|vh))$/.test(value)
+}
+
+function isNumberValue(value: string): boolean {
+  return /^\d+(\.\d+)?$/.test(value)
+}
+
+function isFontWeightValue(value: string): boolean {
+  return /^(100|200|300|400|500|600|700|800|900)$/.test(value)
+}
+
+function isFontFamilyValue(value: string): boolean {
+  return /^[a-z0-9\s"',.-]+$/i.test(value)
+}
+
+function isShadowValue(value: string): boolean {
+  return value === 'none' || /^[a-z0-9\s#(),.%+-]+$/i.test(value)
+}
+
+function isValidThemeTokenValue(token: string, value: string): boolean {
+  if (colorTokenNames.has(token)) return isColorValue(value)
+  if (lengthTokenNames.has(token)) return isLengthValue(value)
+  if (numberTokenNames.has(token)) return isNumberValue(value)
+  if (fontWeightTokenNames.has(token)) return isFontWeightValue(value)
+  if (fontFamilyTokenNames.has(token)) return isFontFamilyValue(value)
+  if (shadowTokenNames.has(token)) return isShadowValue(value)
+  return false
+}
+
+const themeTokensSchema = z.record(z.string().max(60), safeCssValueSchema).superRefine((tokens, context) => {
+  for (const [token, value] of Object.entries(tokens)) {
+    if (!allowedThemeTokenNames.has(token)) {
+      context.addIssue({
+        code: 'custom',
+        path: [token],
+        message: 'Unsupported theme token'
+      })
+      continue
+    }
+    if (!isValidThemeTokenValue(token, value)) {
+      context.addIssue({
+        code: 'custom',
+        path: [token],
+        message: 'Invalid value for this theme token'
+      })
+    }
+  }
+})
+
+export const pluginManifestSchema = marketplaceManifestMetadataSchema.extend({
   id: manifestIdSchema,
   name: z.string().trim().min(2).max(80),
   version: semverLikeSchema,
   description: z.string().trim().max(280).optional(),
   author: z.string().trim().max(80).optional(),
-  entry: safeEntrySchema.optional(),
+  entry: safeEntrySchema,
   homepage: httpsUrlSchema.optional(),
   socials: socialLinksSchema.optional(),
   credits: exportCreditsSchema.optional(),
   permissions: z.array(permissionSchema).max(32).optional()
 })
 
-export const themeTokenMapSchema = z.object({
-  light: z.record(z.string().max(60), z.string().max(120)).optional(),
-  dark: z.record(z.string().max(60), z.string().max(120)).optional()
-})
+export const themeTokenMapSchema = z
+  .object({
+    light: themeTokensSchema.optional(),
+    dark: themeTokensSchema.optional()
+  })
+  .refine((tokens) => Boolean(tokens.light || tokens.dark), 'A theme must include light or dark tokens')
 
-export const themeManifestSchema = z.object({
+export const themeManifestSchema = marketplaceManifestMetadataSchema.extend({
   id: manifestIdSchema,
   name: z.string().trim().min(2).max(80),
   version: semverLikeSchema,

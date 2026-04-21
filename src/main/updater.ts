@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, type MessageBoxOptions, type MessageBoxReturnValue } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import updaterPkg from 'electron-updater'
 
 type UpdateInfo = import('electron-updater').UpdateInfo
@@ -12,18 +12,12 @@ interface UpdateCheckResult {
   updateAvailable: boolean
   currentVersion: string
   latestVersion?: string
+  releaseUrl?: string
   reason?: string
 }
 
 let configured = false
 let checking = false
-
-function showMessage(
-  win: BrowserWindow | null,
-  options: MessageBoxOptions
-): Promise<MessageBoxReturnValue> {
-  return win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options)
-}
 
 function normalizeVersion(value: string): number[] {
   return value
@@ -79,26 +73,6 @@ async function checkLatestRelease(): Promise<{ version: string; url: string } | 
   }
 }
 
-async function promptOpenRelease(
-  win: BrowserWindow | null,
-  latestVersion: string,
-  releaseUrl: string
-): Promise<void> {
-  const result = await showMessage(win, {
-    type: 'info',
-    buttons: ['Open release', 'Later'],
-    defaultId: 0,
-    cancelId: 1,
-    title: 'AMP update available',
-    message: `AMP ${latestVersion} is available.`,
-    detail: `You are running AMP ${app.getVersion()}. Open the release page to download the newest installer.`
-  })
-
-  if (result.response === 0) {
-    await shell.openExternal(releaseUrl)
-  }
-}
-
 function configureAutoUpdater(): void {
   if (configured) {
     return
@@ -108,37 +82,21 @@ function configureAutoUpdater(): void {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
 
-  autoUpdater.on('update-available', async (info: UpdateInfo) => {
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
-    const result = await showMessage(win, {
-      type: 'info',
-      buttons: ['Download update', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'AMP update available',
-      message: `AMP ${info.version} is available.`,
-      detail: `You are running AMP ${app.getVersion()}. Download the update now?`
-    })
-
-    if (result.response === 0) {
-      await autoUpdater.downloadUpdate()
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('app.updateAvailable', {
+        version: info.version,
+        currentVersion: app.getVersion()
+      })
     }
   })
 
-  autoUpdater.on('update-downloaded', async (info: UpdateInfo) => {
-    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0] ?? null
-    const result = await showMessage(win, {
-      type: 'info',
-      buttons: ['Restart and install', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-      title: 'AMP update ready',
-      message: `AMP ${info.version} is ready to install.`,
-      detail: 'Restart AMP now to complete the update.'
-    })
-
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall()
+  autoUpdater.on('update-downloaded', (info: UpdateInfo) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('app.updateDownloaded', {
+        version: info.version,
+        currentVersion: app.getVersion()
+      })
     }
   })
 
@@ -154,15 +112,12 @@ export function registerAppIpc(): void {
     version: app.getVersion()
   }))
 
-  ipcMain.handle('app.checkForUpdates', async (event) => {
-    return checkForUpdates(BrowserWindow.fromWebContents(event.sender), false)
+  ipcMain.handle('app.checkForUpdates', async () => {
+    return checkForUpdates(false)
   })
 }
 
-export async function checkForUpdates(
-  win: BrowserWindow | null,
-  silent = true
-): Promise<UpdateCheckResult> {
+export async function checkForUpdates(silent = true): Promise<UpdateCheckResult> {
   if (checking) {
     return {
       ok: true,
@@ -188,39 +143,25 @@ export async function checkForUpdates(
     const latest = await checkLatestRelease()
     const currentVersion = app.getVersion()
     if (!latest) {
-      if (!silent) {
-        await showMessage(win, {
-          type: 'info',
-          title: 'AMP updates',
-          message: 'No published AMP releases were found yet.'
-        })
-      }
       return { ok: true, updateAvailable: false, currentVersion }
     }
 
     const updateAvailable = isNewerVersion(latest.version, currentVersion)
     if (updateAvailable) {
-      await promptOpenRelease(win, latest.version, latest.url)
-      return { ok: true, updateAvailable, currentVersion, latestVersion: latest.version }
-    }
-
-    if (!silent) {
-      await showMessage(win, {
-        type: 'info',
-        title: 'AMP is up to date',
-        message: `You are running AMP ${currentVersion}.`
-      })
+      return {
+        ok: true,
+        updateAvailable,
+        currentVersion,
+        latestVersion: latest.version,
+        releaseUrl: latest.url
+      }
     }
 
     return { ok: true, updateAvailable: false, currentVersion, latestVersion: latest.version }
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Update check failed.'
     if (!silent) {
-      await showMessage(win, {
-        type: 'warning',
-        title: 'AMP update check failed',
-        message: reason
-      })
+      console.warn('AMP update check failed:', reason)
     }
     return { ok: false, updateAvailable: false, currentVersion: app.getVersion(), reason }
   } finally {

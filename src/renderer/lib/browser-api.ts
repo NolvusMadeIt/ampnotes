@@ -1733,7 +1733,8 @@ export function createBrowserApiClient(): ApiClient {
         ok: false,
         reason: 'Theme folders are available in the desktop app.'
       }),
-      onDeepLinkInstalled: () => () => {}
+      onDeepLinkInstalled: () => () => {},
+      onDeepLinkNotice: () => () => {}
     }
   }
 }

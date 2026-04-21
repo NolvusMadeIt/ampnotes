@@ -1,9 +1,17 @@
-import { BrowserWindow, dialog } from 'electron'
+import { BrowserWindow } from 'electron'
 import { pluginManifestSchema, themeManifestSchema } from '@shared/contracts/ipc'
 import { normalizePluginManifest, normalizeThemeManifest, SettingsRepo } from '@main/db/repos/settingsRepo'
 import { ProfileRepo } from '@main/db/repos/profileRepo'
 
 type DeepLinkKind = 'plugin' | 'theme'
+
+interface MarketplaceManifestMetadata {
+  schemaVersion?: number
+  compatibility?: string
+  screenshot?: string
+  entry?: string
+  tokens?: unknown
+}
 
 interface DeepLinkInstalledPayload {
   kind: DeepLinkKind
@@ -11,6 +19,11 @@ interface DeepLinkInstalledPayload {
   name: string
   enabled?: boolean
   active?: boolean
+}
+
+interface DeepLinkNoticePayload {
+  tone: 'info' | 'success' | 'warning' | 'danger'
+  message: string
 }
 
 let linkHandler: ((url: string) => Promise<void>) | null = null
@@ -49,21 +62,9 @@ function emitInstalled(payload: DeepLinkInstalledPayload): void {
   }
 }
 
-async function fetchManifest(manifestUrl: string): Promise<unknown> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15000)
-  try {
-    const response = await fetch(manifestUrl, {
-      method: 'GET',
-      headers: { accept: 'application/json' },
-      signal: controller.signal
-    })
-    if (!response.ok) {
-      throw new Error(`Failed to download manifest (${response.status})`)
-    }
-    return await response.json()
-  } finally {
-    clearTimeout(timeout)
+function emitNotice(payload: DeepLinkNoticePayload): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    win.webContents.send('marketplace.deepLinkNotice', payload)
   }
 }
 
@@ -79,6 +80,44 @@ function inferKind(input: string | null, manifest: unknown): DeepLinkKind | null
     return 'theme'
   }
   return null
+}
+
+function decodeMarketplaceCode(rawCode: string, declaredKind: string | null): unknown {
+  const trimmed = rawCode.trim()
+  if (!trimmed) {
+    throw new Error('Marketplace install code is missing.')
+  }
+  const expectedPrefix = declaredKind === 'plugin' ? 'amp-plugin:' : declaredKind === 'theme' ? 'amp-theme:' : null
+  const payload = expectedPrefix && trimmed.startsWith(expectedPrefix) ? trimmed.slice(expectedPrefix.length).trim() : trimmed
+  const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  try {
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'))
+  } catch {
+    throw new Error('Marketplace install code is invalid or corrupted.')
+  }
+}
+
+function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknown): void {
+  if (!manifest || typeof manifest !== 'object') {
+    throw new Error('Marketplace manifest is missing.')
+  }
+  const metadata = manifest as MarketplaceManifestMetadata
+  if (metadata.schemaVersion !== 1) {
+    throw new Error('Marketplace manifest must use schemaVersion 1.')
+  }
+  if (!metadata.compatibility?.trim()) {
+    throw new Error('Marketplace manifest must include compatibility metadata.')
+  }
+  if (!metadata.screenshot?.trim()) {
+    throw new Error('Marketplace manifest must include a screenshot.')
+  }
+  if (kind === 'plugin' && !metadata.entry?.trim()) {
+    throw new Error('Plugin manifest must include an entry file.')
+  }
+  if (kind === 'theme' && !metadata.tokens) {
+    throw new Error('Theme manifest must include token data.')
+  }
 }
 
 export async function handleInstallDeepLink(
@@ -102,83 +141,56 @@ export async function handleInstallDeepLink(
 
   const session = profileRepo.getActiveSession()
   if (!session) {
-    await dialog.showMessageBox({
-      type: 'warning',
-      title: 'AMP',
-      message: 'Please sign in to AMP before installing marketplace assets.',
-      detail: 'Open AMP, sign in to your profile, then click the install button again.'
+    emitNotice({
+      tone: 'warning',
+      message: 'Sign in to AMP before installing marketplace assets, then click install again.'
     })
     return
   }
 
-  const manifestUrl = parsed.searchParams.get('manifest')
+  const manifestCode = parsed.searchParams.get('code')
   const declaredKind = parsed.searchParams.get('kind')
 
-  if (!manifestUrl) {
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'AMP',
-      message: 'Invalid install link',
-      detail: 'The marketplace link is missing a manifest URL.'
+  if (!manifestCode) {
+    emitNotice({
+      tone: 'danger',
+      message: 'Invalid marketplace install link. The install code is missing.'
     })
     return
   }
 
   try {
-    const manifestJson = await fetchManifest(manifestUrl)
+    const manifestJson = decodeMarketplaceCode(manifestCode, declaredKind)
     const kind = inferKind(declaredKind, manifestJson)
 
     if (kind === 'plugin') {
+      assertMarketplaceManifestV1(kind, manifestJson)
       const pluginManifest = normalizePluginManifest(pluginManifestSchema.parse(manifestJson))
       const installed = settingsRepo.registerPlugin(session.profileId, pluginManifest, 'marketplace')
-      const prompt = await dialog.showMessageBox({
-        type: 'question',
-        title: 'Plugin Installed',
-        message: `${installed.name} installed successfully.`,
-        detail: 'Enable this plugin right now?',
-        buttons: ['Enable now', 'Keep disabled'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      const enabled = prompt.response === 0
+      const enabled = false
       settingsRepo.setPluginEnabled(session.profileId, installed.id, enabled)
       emitInstalled({ kind: 'plugin', id: installed.id, name: installed.name, enabled })
       return
     }
 
     if (kind === 'theme') {
+      assertMarketplaceManifestV1(kind, manifestJson)
       const themeManifest = normalizeThemeManifest(themeManifestSchema.parse(manifestJson))
       const installed = settingsRepo.registerTheme(session.profileId, themeManifest, 'marketplace')
-      const prompt = await dialog.showMessageBox({
-        type: 'question',
-        title: 'Theme Installed',
-        message: `${installed.name} installed successfully.`,
-        detail: 'Set this theme as your active theme now?',
-        buttons: ['Set as active', 'Not now'],
-        defaultId: 0,
-        cancelId: 1
-      })
-      const active = prompt.response === 0
-      if (active) {
-        settingsRepo.setActiveMarketplaceTheme(session.profileId, installed.id)
-      }
+      const active = false
       emitInstalled({ kind: 'theme', id: installed.id, name: installed.name, active })
       return
     }
 
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'AMP',
-      message: 'Unsupported install link',
-      detail: 'Could not determine whether this asset is a plugin or theme.'
+    emitNotice({
+      tone: 'danger',
+      message: 'Unsupported marketplace install link. AMP could not tell whether it is a plugin or theme.'
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Installation failed'
-    await dialog.showMessageBox({
-      type: 'error',
-      title: 'AMP',
-      message: 'Could not install marketplace asset',
-      detail: message
+    emitNotice({
+      tone: 'danger',
+      message: `Could not install marketplace asset. ${message}`
     })
   }
 }

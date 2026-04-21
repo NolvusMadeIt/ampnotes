@@ -4,6 +4,14 @@ declare global {
   interface Window {
     api?: ApiClient
   }
+
+  interface ImportMetaEnv {
+    readonly VITE_AMP_MARKETPLACE_URL?: string
+  }
+
+  interface ImportMeta {
+    readonly env: ImportMetaEnv
+  }
 }
 
 declare module '*.png' {

@@ -19,12 +19,14 @@ body,
 
 html {
   font-size: var(--font-size-base);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent) 52%, var(--border) 48%) var(--bg);
 }
 
 body {
   font-family: var(--font-sans);
   font-size: 1rem;
-  line-height: 1.62;
+  line-height: var(--line-height-body);
   color: var(--text);
   background:
     radial-gradient(circle at 8% 12%, var(--ambient-a), transparent 34%),
@@ -33,6 +35,25 @@ body {
     var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid var(--bg);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 52%, var(--border) 48%);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
 .paper-surface {
@@ -50,7 +71,7 @@ select {
 }
 
 *:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline: var(--focus-outline-width) solid color-mix(in srgb, var(--ring) 55%, transparent);
   outline-offset: 1px;
 }
 
@@ -75,32 +96,27 @@ select {
 
 .editorial-heading {
   font-family: var(--font-serif);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--letter-spacing-heading);
+  line-height: var(--line-height-tight);
 }
 
 .mono-meta {
   font-family: var(--font-mono);
+  letter-spacing: var(--letter-spacing-meta);
 }
 
 .scroll-y {
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: color-mix(in srgb, var(--accent) 52%, var(--border) 48%) transparent;
 }
 
 .scroll-y::-webkit-scrollbar {
-  width: 10px;
+  width: var(--scrollbar-size);
 }
 
 .scroll-y::-webkit-scrollbar-thumb {
-  background-color: var(--border);
+  background-color: color-mix(in srgb, var(--accent) 52%, var(--border) 48%);
   border-radius: 999px;
-}
-
-:root {
-  --radius-sm: 5px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
 }
 
 .rounded-md {
@@ -118,6 +134,14 @@ select {
 .rounded-2xl,
 .rounded-full {
   border-radius: var(--radius-sm) !important;
+}
+
+.font-medium {
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.font-semibold {
+  font-weight: var(--font-weight-semibold) !important;
 }
 
 @keyframes toastSlideIn {

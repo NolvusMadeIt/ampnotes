@@ -179,10 +179,6 @@ function applyMarketplaceThemeOverrides(
 
   for (const [name, value] of Object.entries(selected)) {
     const token = name.startsWith('--') ? name : `--${name}`
-    // Keep border color controlled by app presets to avoid bright/white outline themes.
-    if (token === '--border') {
-      continue
-    }
     const nextValue = value.trim()
     if (!nextValue) {
       continue

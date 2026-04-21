@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AuthView } from '@renderer/features/auth/AuthView'
-import { NeoApp } from '@renderer/features/neo/NeoApp'
+import { NeoApp, type MarketplaceFiltersState, type NeoPage } from '@renderer/features/neo/NeoApp'
 import { AboutPage } from '@renderer/features/legal/AboutPage'
 import { TermsOfServicePage } from '@renderer/features/legal/TermsOfServicePage'
 import { NewPromptModal } from '@renderer/features/prompts/NewPromptModal'
@@ -36,7 +36,10 @@ const EMPTY_MARKETPLACE_STATE: MarketplaceStateDTO = {
   activeThemeId: null
 }
 
-const MARKETPLACE_URL = 'https://nolvusmadeit.github.io/ampnotes/'
+const DEFAULT_MARKETPLACE_URL =
+  import.meta.env.VITE_AMP_MARKETPLACE_URL ??
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:4200/' : 'https://ampmarketplace.vercel.app/')
+const MARKETPLACE_URL_STORAGE_KEY = 'ampnotes.marketplace-url.v1'
 
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
@@ -44,78 +47,66 @@ const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   themePreset: 'midnight'
 }
 
+const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
+  q: '',
+  kind: 'all',
+  tier: 'all',
+  sort: 'popular',
+  technology: 'all'
+}
+
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APP_VERSION = '0.1.2'
 
-function AppFooter({
-  version,
-  onAbout,
-  onTos
-}: {
-  version: string
-  onAbout: () => void
-  onTos: () => void
-}) {
-  return (
-    <footer className="flex h-8 shrink-0 items-center bg-surface px-4 text-xs text-muted">
-      <span>© 2026 AMP</span>
-      <div className="ml-auto flex items-center gap-3">
-        <button type="button" className="transition-colors hover:text-text" onClick={onAbout}>
-          About
-        </button>
-        <button type="button" className="transition-colors hover:text-text" onClick={onTos}>
-          ToS
-        </button>
-        <span className="mono-meta">v{version}</span>
-      </div>
-    </footer>
-  )
+function buildMarketplaceUrl(
+  baseUrl: string,
+  theme: ThemeMode,
+  appearance: AppearanceSettingsDTO,
+  activeMarketplaceThemeId: string | undefined,
+  filters: MarketplaceFiltersState
+): string {
+  try {
+    const url = new URL(baseUrl)
+    url.searchParams.set('embedded', '1')
+    url.searchParams.set('ampTheme', resolveTheme(theme))
+    url.searchParams.set('ampPreset', appearance.themePreset)
+    url.searchParams.set('kind', filters.kind)
+    url.searchParams.set('tier', filters.tier)
+    url.searchParams.set('sort', filters.sort)
+    url.searchParams.set('technology', filters.technology)
+    if (filters.q.trim()) {
+      url.searchParams.set('q', filters.q.trim())
+    }
+    if (activeMarketplaceThemeId) {
+      url.searchParams.set('activeThemeId', activeMarketplaceThemeId)
+    }
+    return url.toString()
+  } catch {
+    return `${DEFAULT_MARKETPLACE_URL}?embedded=1`
+  }
 }
 
-function AppTopNav({
-  title,
-  onSettings,
-  onMarketplace,
-  onAbout,
-  onTos,
-  onCheckForUpdates,
-  onClose
-}: {
-  title: string
-  onSettings: () => void
-  onMarketplace: () => void
-  onAbout: () => void
-  onTos: () => void
-  onCheckForUpdates: () => void
-  onClose?: () => void
-}) {
-  return (
-    <header className="flex items-center gap-4 border-b border-line/20 bg-surface px-5 py-3">
-      <h2 className="editorial-heading text-xl font-semibold">{title}</h2>
-      <nav className="ml-auto flex items-center gap-2 text-sm">
-        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onMarketplace}>
-          Marketplace
-        </button>
-        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onSettings}>
-          Settings
-        </button>
-        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onAbout}>
-          About
-        </button>
-        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onTos}>
-          ToS
-        </button>
-        <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onCheckForUpdates}>
-          Updates
-        </button>
-        {onClose ? (
-          <button type="button" className="px-2 py-1 text-muted transition-colors hover:text-text" onClick={onClose}>
-            Close
-          </button>
-        ) : null}
-      </nav>
-    </header>
-  )
+function normalizeMarketplaceBaseUrl(value: string): string {
+  const url = new URL(value.trim())
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('Marketplace URL must start with https:// or http://.')
+  }
+  return url.toString()
+}
+
+function readMarketplaceBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return DEFAULT_MARKETPLACE_URL
+  }
+  const stored = window.localStorage.getItem(MARKETPLACE_URL_STORAGE_KEY)
+  if (!stored) {
+    return DEFAULT_MARKETPLACE_URL
+  }
+  try {
+    return normalizeMarketplaceBaseUrl(stored)
+  } catch {
+    return DEFAULT_MARKETPLACE_URL
+  }
 }
 
 export default function Routes() {
@@ -139,6 +130,11 @@ export default function Routes() {
   const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'admin' | 'all'>('all')
   const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
+  const [marketplaceLoadKey, setMarketplaceLoadKey] = useState(0)
+  const [marketplaceStatus, setMarketplaceStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [marketplaceBaseUrl, setMarketplaceBaseUrl] = useState(readMarketplaceBaseUrl)
+  const [marketplaceFilters, setMarketplaceFilters] =
+    useState<MarketplaceFiltersState>(DEFAULT_MARKETPLACE_FILTERS)
 
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineConfigured, setRefineConfigured] = useState(false)
@@ -196,6 +192,36 @@ export default function Routes() {
     applyTheme(theme, activeMarketplaceTheme?.tokens)
   }, [activeMarketplaceTheme?.tokens, appearance, theme])
 
+  const marketplaceUrl = useMemo(() => {
+    return buildMarketplaceUrl(marketplaceBaseUrl, theme, appearance, activeMarketplaceTheme?.id, marketplaceFilters)
+  }, [activeMarketplaceTheme?.id, appearance.themePreset, marketplaceBaseUrl, marketplaceFilters, theme])
+
+  const handleMarketplaceFiltersChange = useCallback((filters: MarketplaceFiltersState) => {
+    setMarketplaceStatus('loading')
+    setMarketplaceFilters(filters)
+  }, [])
+
+  const handleMarketplaceBaseUrlChange = useCallback((nextUrl: string) => {
+    const normalized = normalizeMarketplaceBaseUrl(nextUrl)
+    window.localStorage.setItem(MARKETPLACE_URL_STORAGE_KEY, normalized)
+    setMarketplaceBaseUrl(normalized)
+    setMarketplaceStatus('loading')
+    setMarketplaceLoadKey((current) => current + 1)
+  }, [])
+
+  const openMarketplace = useCallback(() => {
+    setMarketplaceStatus('loading')
+    setMarketplaceLoadKey((current) => current + 1)
+    setSettingsOpen(false)
+    setLegalPage(null)
+    setMarketplaceOpen(true)
+  }, [])
+
+  const retryMarketplace = useCallback(() => {
+    setMarketplaceStatus('loading')
+    setMarketplaceLoadKey((current) => current + 1)
+  }, [])
+
   const removeToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id))
     const timer = toastTimersRef.current.get(id)
@@ -223,6 +249,10 @@ export default function Routes() {
     const result = await api.app.checkForUpdates()
     if (!result.ok) {
       flashToast(result.reason ?? 'Update check failed.', 'warning')
+      return
+    }
+    if (result.updateAvailable) {
+      flashToast(`AMP ${result.latestVersion ?? 'update'} is available. Open the releases page to download it.`, 'success')
       return
     }
     if (!result.updateAvailable) {
@@ -269,6 +299,8 @@ export default function Routes() {
 
   const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'admin' | 'all') => {
     setSettingsSection(section)
+    setMarketplaceOpen(false)
+    setLegalPage(null)
     setSettingsOpen(true)
   }, [])
 
@@ -431,14 +463,50 @@ export default function Routes() {
     return api.marketplace.onDeepLinkInstalled((event) => {
       void refreshWorkspace()
       if (event.kind === 'theme') {
-        flashToast(
-          event.active ? `Installed "${event.name}" and set active theme.` : `Installed "${event.name}" theme.`
-        )
+        flashToast(`Installed "${event.name}" theme.`, 'success')
+        if (profile) {
+          void requestConfirm({
+            title: 'Make this your active theme?',
+            message: `Set "${event.name}" as your default AMP theme now?`,
+            confirmLabel: 'Set active theme'
+          }).then(async (confirmed) => {
+            if (!confirmed) {
+              return
+            }
+            await api.marketplace.setActiveTheme(profile.id, event.id)
+            await refreshWorkspace()
+            flashToast(`"${event.name}" is now your active theme.`, 'success')
+          })
+        }
         return
       }
-      flashToast(event.enabled ? `Installed "${event.name}" and enabled plugin.` : `Installed "${event.name}" plugin.`)
+      flashToast(`Installed "${event.name}" plugin.`, 'success')
+      if (profile) {
+        void requestConfirm({
+          title: 'Enable this plugin?',
+          message: `Enable "${event.name}" in AMP now?`,
+          confirmLabel: 'Enable plugin'
+        }).then(async (confirmed) => {
+          if (!confirmed) {
+            return
+          }
+          await api.marketplace.setPluginEnabled(profile.id, event.id, true)
+          await refreshWorkspace()
+          flashToast(`"${event.name}" is enabled.`, 'success')
+        })
+      }
     })
-  }, [api.marketplace, flashToast, refreshWorkspace])
+  }, [api.marketplace, flashToast, profile, refreshWorkspace, requestConfirm])
+
+  useEffect(() => {
+    if (!api.marketplace.onDeepLinkNotice) {
+      return undefined
+    }
+
+    return api.marketplace.onDeepLinkNotice((event) => {
+      flashToast(event.message, event.tone)
+    })
+  }, [api.marketplace, flashToast])
 
   const handleCreateAndSignIn = useCallback(
     async (displayName: string) => {
@@ -1048,6 +1116,76 @@ export default function Routes() {
     return <AuthView profiles={profiles} onCreateAndSignIn={handleCreateAndSignIn} onSignIn={handleSignIn} />
   }
 
+  const page: NeoPage = settingsOpen ? 'settings' : legalPage === 'about' ? 'about' : legalPage === 'tos' ? 'tos' : marketplaceOpen ? 'marketplace' : 'workspace'
+  const settingsPage = (
+    <SettingsDialog
+      asPage
+      section={settingsSection}
+      currentTheme={theme}
+      appearance={appearance}
+      marketplaceState={marketplaceState}
+      marketplaceBaseUrl={marketplaceBaseUrl}
+      defaultMarketplaceBaseUrl={DEFAULT_MARKETPLACE_URL}
+      onThemeChange={async (nextTheme) => {
+        setTheme(nextTheme)
+        await api.settings.setTheme(profile.id, nextTheme)
+      }}
+      onAppearanceChange={async (nextAppearance) => {
+        setAppearance(nextAppearance)
+        await api.settings.setAppearance(profile.id, nextAppearance)
+      }}
+      onMarketplaceBaseUrlChange={async (nextUrl) => handleMarketplaceBaseUrlChange(nextUrl)}
+      onRegisterPlugin={handleRegisterPlugin}
+      onImportPluginManifestFile={handleImportPluginManifestFile}
+      onImportPluginFromFolder={handleImportPluginFromFolder}
+      onExportPluginManifest={handleExportPluginManifest}
+      onTogglePlugin={handleTogglePlugin}
+      onRemovePlugin={handleRemovePlugin}
+      onOpenPluginFolder={handleOpenPluginFolder}
+      onRegisterTheme={handleRegisterTheme}
+      onImportThemeManifestFile={handleImportThemeManifestFile}
+      onImportThemeFromFolder={handleImportThemeFromFolder}
+      onExportThemeManifest={handleExportThemeManifest}
+      onSetActiveMarketplaceTheme={handleSetActiveTheme}
+      onRemoveTheme={handleRemoveTheme}
+      onOpenThemeFolder={handleOpenThemeFolder}
+      onSaveGroqKey={async (apiKey) => {
+        await api.refine.saveApiKey(profile.id, apiKey)
+        setGroqKeyConfigured(true)
+        flashToast('Groq API key saved')
+      }}
+      onClearGroqKey={async () => {
+        await api.refine.clearApiKey(profile.id)
+        setGroqKeyConfigured(false)
+        flashToast('Groq API key cleared')
+      }}
+      isGroqKeyConfigured={groqKeyConfigured}
+      adminProfile={adminProfile}
+      onSaveAdminProfile={async (nextProfile) => {
+        const updated = await api.settings.setAdminProfile(profile.id, nextProfile)
+        setAdminProfile(updated)
+        if (updated.displayName && updated.displayName !== profile.displayName) {
+          flashToast(`Admin profile updated for ${updated.displayName}`)
+        }
+      }}
+      onSetAdminPin={async (pin) => {
+        const updated = await api.settings.setAdminPin(profile.id, pin)
+        setAdminProfile(updated)
+      }}
+      onVerifyAdminPin={(pin) => api.settings.verifyAdminPin(profile.id, pin)}
+      onClearAdminPin={async () => {
+        const updated = await api.settings.clearAdminPin(profile.id)
+        setAdminProfile(updated)
+      }}
+      onSignOut={async () => {
+        await api.profile.signOut()
+        setSettingsOpen(false)
+        await refreshAuth()
+      }}
+    />
+  )
+  const legalView = legalPage === 'about' ? <AboutPage /> : legalPage === 'tos' ? <TermsOfServicePage /> : null
+
   return (
     <>
       <NeoApp
@@ -1061,16 +1199,38 @@ export default function Routes() {
         latestUpdated={latestUpdated}
         selectedPromptId={selectedPromptId}
         validatingPromptId={validatingPromptId}
+        page={page}
+        marketplaceUrl={marketplaceUrl}
+        marketplaceLoadKey={marketplaceLoadKey}
+        marketplaceStatus={marketplaceStatus}
+        marketplaceFilters={marketplaceFilters}
+        settingsView={settingsPage}
+        legalView={legalView}
         onSelectPromptId={setSelectedPromptId}
         onSelectTag={handleSelectTag}
         onCreatePrompt={handleCreatePrompt}
         onOpenShareImport={() => setShareOpen(true)}
-        onOpenSettings={() => openSettings('general')}
-        onOpenAbout={() => setLegalPage('about')}
-        onOpenTos={() => setLegalPage('tos')}
-        onOpenMarketplace={() => {
-          setMarketplaceOpen(true)
+        onOpenWorkspace={() => {
+          setMarketplaceOpen(false)
+          setSettingsOpen(false)
+          setLegalPage(null)
         }}
+        onOpenSettings={() => openSettings('general')}
+        onOpenAbout={() => {
+          setMarketplaceOpen(false)
+          setSettingsOpen(false)
+          setLegalPage('about')
+        }}
+        onOpenTos={() => {
+          setMarketplaceOpen(false)
+          setSettingsOpen(false)
+          setLegalPage('tos')
+        }}
+        onOpenMarketplace={openMarketplace}
+        onRetryMarketplace={retryMarketplace}
+        onMarketplaceLoad={() => setMarketplaceStatus('ready')}
+        onMarketplaceError={() => setMarketplaceStatus('error')}
+        onMarketplaceFiltersChange={handleMarketplaceFiltersChange}
         onCheckForUpdates={handleCheckForUpdates}
         onCopyPrompt={handleCopy}
         onSavePrompt={handleSavePrompt}
@@ -1087,173 +1247,6 @@ export default function Routes() {
         onUpdateTemplate={handleUpdateTemplate}
         onDeleteTemplate={handleDeleteTemplate}
       />
-
-      {settingsOpen && (
-        <div className="fixed inset-0 z-[90] bg-bg p-3">
-          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
-            <AppTopNav
-              title="Settings"
-              onSettings={() => openSettings('general')}
-              onMarketplace={() => {
-                setSettingsOpen(false)
-                setMarketplaceOpen(true)
-              }}
-              onAbout={() => {
-                setSettingsOpen(false)
-                setLegalPage('about')
-              }}
-              onTos={() => {
-                setSettingsOpen(false)
-                setLegalPage('tos')
-              }}
-              onCheckForUpdates={handleCheckForUpdates}
-              onClose={() => setSettingsOpen(false)}
-            />
-            <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
-              <SettingsDialog
-                asPage
-                section={settingsSection}
-                currentTheme={theme}
-                appearance={appearance}
-                marketplaceState={marketplaceState}
-                onThemeChange={async (nextTheme) => {
-                  setTheme(nextTheme)
-                  await api.settings.setTheme(profile.id, nextTheme)
-                }}
-                onAppearanceChange={async (nextAppearance) => {
-                  setAppearance(nextAppearance)
-                  await api.settings.setAppearance(profile.id, nextAppearance)
-                }}
-                onRegisterPlugin={handleRegisterPlugin}
-                onImportPluginManifestFile={handleImportPluginManifestFile}
-                onImportPluginFromFolder={handleImportPluginFromFolder}
-                onExportPluginManifest={handleExportPluginManifest}
-                onTogglePlugin={handleTogglePlugin}
-                onRemovePlugin={handleRemovePlugin}
-                onOpenPluginFolder={handleOpenPluginFolder}
-                onRegisterTheme={handleRegisterTheme}
-                onImportThemeManifestFile={handleImportThemeManifestFile}
-                onImportThemeFromFolder={handleImportThemeFromFolder}
-                onExportThemeManifest={handleExportThemeManifest}
-                onSetActiveMarketplaceTheme={handleSetActiveTheme}
-                onRemoveTheme={handleRemoveTheme}
-                onOpenThemeFolder={handleOpenThemeFolder}
-                onSaveGroqKey={async (apiKey) => {
-                  await api.refine.saveApiKey(profile.id, apiKey)
-                  setGroqKeyConfigured(true)
-                  flashToast('Groq API key saved')
-                }}
-                onClearGroqKey={async () => {
-                  await api.refine.clearApiKey(profile.id)
-                  setGroqKeyConfigured(false)
-                  flashToast('Groq API key cleared')
-                }}
-                isGroqKeyConfigured={groqKeyConfigured}
-                adminProfile={adminProfile}
-                onSaveAdminProfile={async (nextProfile) => {
-                  const updated = await api.settings.setAdminProfile(profile.id, nextProfile)
-                  setAdminProfile(updated)
-                  if (updated.displayName && updated.displayName !== profile.displayName) {
-                    flashToast(`Admin profile updated for ${updated.displayName}`)
-                  }
-                }}
-                onSetAdminPin={async (pin) => {
-                  const updated = await api.settings.setAdminPin(profile.id, pin)
-                  setAdminProfile(updated)
-                }}
-                onVerifyAdminPin={(pin) => api.settings.verifyAdminPin(profile.id, pin)}
-                onClearAdminPin={async () => {
-                  const updated = await api.settings.clearAdminPin(profile.id)
-                  setAdminProfile(updated)
-                }}
-                onSignOut={async () => {
-                  await api.profile.signOut()
-                  setSettingsOpen(false)
-                  await refreshAuth()
-                }}
-              />
-            </div>
-            <AppFooter
-              version={appVersion}
-              onAbout={() => {
-                setSettingsOpen(false)
-                setLegalPage('about')
-              }}
-              onTos={() => {
-                setSettingsOpen(false)
-                setLegalPage('tos')
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {marketplaceOpen && (
-        <div className="fixed inset-0 z-[90] bg-bg p-3">
-          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
-            <AppTopNav
-              title="Marketplace"
-              onSettings={() => {
-                setMarketplaceOpen(false)
-                openSettings('general')
-              }}
-              onMarketplace={() => setMarketplaceOpen(true)}
-              onAbout={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('about')
-              }}
-              onTos={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('tos')
-              }}
-              onCheckForUpdates={handleCheckForUpdates}
-              onClose={() => setMarketplaceOpen(false)}
-            />
-            <iframe
-              title="AMP Marketplace"
-              src={MARKETPLACE_URL}
-              className="min-h-0 flex-1 border-0 bg-bg"
-            />
-            <AppFooter
-              version={appVersion}
-              onAbout={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('about')
-              }}
-              onTos={() => {
-                setMarketplaceOpen(false)
-                setLegalPage('tos')
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {legalPage && (
-        <div className="fixed inset-0 z-[90] bg-bg p-3">
-          <div className="flex h-full min-h-0 flex-col border border-line/20 bg-surface shadow-panel">
-            <AppTopNav
-              title={legalPage === 'about' ? 'About AMP' : 'Terms of Service'}
-              onSettings={() => {
-                setLegalPage(null)
-                openSettings('general')
-              }}
-              onMarketplace={() => {
-                setLegalPage(null)
-                setMarketplaceOpen(true)
-              }}
-              onAbout={() => setLegalPage('about')}
-              onTos={() => setLegalPage('tos')}
-              onCheckForUpdates={handleCheckForUpdates}
-              onClose={() => setLegalPage(null)}
-            />
-            <div className="scroll-y min-h-0 flex-1 overflow-y-auto p-5">
-              {legalPage === 'about' ? <AboutPage /> : <TermsOfServicePage />}
-            </div>
-            <AppFooter version={appVersion} onAbout={() => setLegalPage('about')} onTos={() => setLegalPage('tos')} />
-          </div>
-        </div>
-      )}
 
       <NewPromptModal
         open={newPromptOpen}
