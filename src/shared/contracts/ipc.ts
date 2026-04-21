@@ -94,6 +94,11 @@ const marketplaceManifestMetadataSchema = z.object({
     .min(1)
     .max(240)
     .regex(/^(https:\/\/|\/)[^\s<>]+$/i, 'Screenshot must be an HTTPS URL or marketplace-relative path')
+    .optional(),
+  checksum: z
+    .string()
+    .trim()
+    .regex(/^sha256:[a-f0-9]{64}$/i, 'Checksum must be sha256 followed by 64 hex characters')
     .optional()
 })
 

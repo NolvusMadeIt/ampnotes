@@ -9,6 +9,7 @@ interface MarketplaceManifestMetadata {
   schemaVersion?: number
   compatibility?: string
   screenshot?: string
+  checksum?: string
   entry?: string
   tokens?: unknown
 }
@@ -111,6 +112,9 @@ function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknown): voi
   }
   if (!metadata.screenshot?.trim()) {
     throw new Error('Marketplace manifest must include a screenshot.')
+  }
+  if (!metadata.checksum?.trim() || !/^sha256:[a-f0-9]{64}$/i.test(metadata.checksum)) {
+    throw new Error('Marketplace manifest must include a valid checksum.')
   }
   if (kind === 'plugin' && !metadata.entry?.trim()) {
     throw new Error('Plugin manifest must include an entry file.')
