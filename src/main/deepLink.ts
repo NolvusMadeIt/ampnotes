@@ -10,6 +10,10 @@ interface MarketplaceManifestMetadata {
   compatibility?: string
   screenshot?: string
   checksum?: string
+  packageUrl?: string
+  packageChecksum?: string
+  packageSizeBytes?: number
+  releaseNotes?: string
   entry?: string
   tokens?: unknown
 }
@@ -115,6 +119,14 @@ export function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknow
   }
   if (!metadata.checksum?.trim() || !/^sha256:[a-f0-9]{64}$/i.test(metadata.checksum)) {
     throw new Error('Marketplace manifest must include a valid checksum.')
+  }
+  if (metadata.packageUrl?.trim()) {
+    if (!metadata.packageUrl.startsWith('https://') || !metadata.packageUrl.toLowerCase().split('?')[0].endsWith('.zip')) {
+      throw new Error('Marketplace package URL must be an HTTPS .zip file.')
+    }
+    if (!metadata.packageChecksum?.trim() || !/^sha256:[a-f0-9]{64}$/i.test(metadata.packageChecksum)) {
+      throw new Error('Marketplace package must include a valid checksum.')
+    }
   }
   if (kind === 'plugin' && !metadata.entry?.trim()) {
     throw new Error('Plugin manifest must include an entry file.')

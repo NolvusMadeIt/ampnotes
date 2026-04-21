@@ -65,6 +65,10 @@ const PLUGIN_MANIFEST_PLACEHOLDER = `{
   "compatibility": "AMP 0.1.0+",
   "screenshot": "/screenshots/wordcount.svg",
   "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "packageUrl": "https://example.com/wordcount.zip",
+  "packageChecksum": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "packageSizeBytes": 1024,
+  "releaseNotes": "Initial marketplace package.",
   "socials": {
     "github": "https://github.com/your-team"
   },
@@ -89,6 +93,10 @@ const THEME_MANIFEST_PLACEHOLDER = `{
   "compatibility": "AMP 0.1.0+",
   "screenshot": "/screenshots/sunset-paper.svg",
   "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "packageUrl": "https://example.com/sunset-paper.zip",
+  "packageChecksum": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "packageSizeBytes": 1024,
+  "releaseNotes": "Initial marketplace package.",
   "socials": {
     "github": "https://github.com/your-team"
   },
@@ -476,6 +484,14 @@ function validateMarketplaceCodeManifest(
   }
   if (!manifest.checksum?.trim() || !/^sha256:[a-f0-9]{64}$/i.test(manifest.checksum)) {
     throw new Error('Marketplace code must include a valid checksum.')
+  }
+  if (manifest.packageUrl?.trim()) {
+    if (!manifest.packageUrl.startsWith('https://') || !manifest.packageUrl.toLowerCase().split('?')[0].endsWith('.zip')) {
+      throw new Error('Marketplace package URL must be an HTTPS .zip file.')
+    }
+    if (!manifest.packageChecksum?.trim() || !/^sha256:[a-f0-9]{64}$/i.test(manifest.packageChecksum)) {
+      throw new Error('Marketplace package must include a valid checksum.')
+    }
   }
   if (kind === 'plugin' && !('entry' in manifest && manifest.entry?.trim())) {
     throw new Error('Plugin marketplace code must include an entry file.')

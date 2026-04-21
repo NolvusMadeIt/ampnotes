@@ -99,7 +99,17 @@ const marketplaceManifestMetadataSchema = z.object({
     .string()
     .trim()
     .regex(/^sha256:[a-f0-9]{64}$/i, 'Checksum must be sha256 followed by 64 hex characters')
-    .optional()
+    .optional(),
+  packageUrl: httpsUrlSchema
+    .refine((value) => value.toLowerCase().split('?')[0].endsWith('.zip'), 'Package URL must point to a .zip file')
+    .optional(),
+  packageChecksum: z
+    .string()
+    .trim()
+    .regex(/^sha256:[a-f0-9]{64}$/i, 'Package checksum must be sha256 followed by 64 hex characters')
+    .optional(),
+  packageSizeBytes: z.number().int().positive().optional(),
+  releaseNotes: z.string().trim().min(1).max(600).optional()
 })
 
 const colorTokenNames = new Set([

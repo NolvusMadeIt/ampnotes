@@ -290,6 +290,14 @@ function decodeMarketplaceInstallCode(kind: 'plugin' | 'theme', rawCode: string)
   if (!/^sha256:[a-f0-9]{64}$/i.test(manifest.checksum)) {
     throw new Error('Marketplace code has an invalid checksum.')
   }
+  if (manifest.packageUrl) {
+    if (!manifest.packageUrl.startsWith('https://') || !manifest.packageUrl.toLowerCase().split('?')[0].endsWith('.zip')) {
+      throw new Error('Marketplace package URL must be an HTTPS .zip file.')
+    }
+    if (!manifest.packageChecksum || !/^sha256:[a-f0-9]{64}$/i.test(manifest.packageChecksum)) {
+      throw new Error('Marketplace package must include a valid checksum.')
+    }
+  }
   if (kind === 'plugin' && !('entry' in manifest && manifest.entry)) {
     throw new Error('Plugin marketplace code is missing an entry file.')
   }

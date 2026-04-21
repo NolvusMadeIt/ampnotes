@@ -60,6 +60,7 @@ const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APP_VERSION = '0.1.2'
+const VERIFIED_GUMROAD_LICENSES_STORAGE_KEY = 'ampnotes.gumroad.verified-products.v1'
 
 interface PaidMarketplaceInstallRequest {
   open: boolean
@@ -67,6 +68,26 @@ interface PaidMarketplaceInstallRequest {
   code: string
   purchaseUrl: string
   gumroadProductPermalink: string
+}
+
+function readVerifiedGumroadProducts(): string[] {
+  try {
+    const raw = window.localStorage.getItem(VERIFIED_GUMROAD_LICENSES_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function isGumroadProductVerified(productPermalink: string): boolean {
+  return readVerifiedGumroadProducts().includes(productPermalink)
+}
+
+function rememberVerifiedGumroadProduct(productPermalink: string): void {
+  const verified = new Set(readVerifiedGumroadProducts())
+  verified.add(productPermalink)
+  window.localStorage.setItem(VERIFIED_GUMROAD_LICENSES_STORAGE_KEY, JSON.stringify([...verified].sort()))
 }
 
 function buildMarketplaceUrl(
@@ -500,6 +521,7 @@ export default function Routes() {
         throw new Error('That license is not eligible for install.')
       }
 
+      rememberVerifiedGumroadProduct(paidInstall.gumroadProductPermalink)
       const installed = await api.marketplace.installCode(profile.id, paidInstall.kind, paidInstall.code)
       setPaidInstall(null)
       setGumroadLicenseKey('')
@@ -619,6 +641,16 @@ export default function Routes() {
       if (payload.type === 'purchase') {
         if (typeof payload.purchaseUrl !== 'string' || typeof payload.gumroadProductPermalink !== 'string') {
           flashToast('This paid listing is missing Gumroad verification metadata.', 'danger')
+          return
+        }
+        if (isGumroadProductVerified(payload.gumroadProductPermalink)) {
+          void api.marketplace
+            .installCode(profile.id, payload.kind, payload.code)
+            .then(handleMarketplaceInstalledEvent)
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : 'Marketplace install failed.'
+              flashToast(message, 'danger')
+            })
           return
         }
         setPaidInstall({
@@ -1458,7 +1490,7 @@ export default function Routes() {
         <div className="space-y-4">
           <p className="text-sm leading-6 text-muted">
             Purchase the asset through Gumroad, then paste the license key here. AMP verifies the key before installing
-            the marketplace asset.
+            the marketplace asset. Once verified, this product stays unlocked on this device.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button

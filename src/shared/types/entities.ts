@@ -91,6 +91,10 @@ export interface CreatePluginManifestInput {
   compatibility?: string
   screenshot?: string
   checksum?: string
+  packageUrl?: string
+  packageChecksum?: string
+  packageSizeBytes?: number
+  releaseNotes?: string
   entry?: string
   homepage?: string
   socials?: CreatorSocialLinks
@@ -120,6 +124,10 @@ export interface CreateThemeManifestInput {
   compatibility?: string
   screenshot?: string
   checksum?: string
+  packageUrl?: string
+  packageChecksum?: string
+  packageSizeBytes?: number
+  releaseNotes?: string
   homepage?: string
   socials?: CreatorSocialLinks
   credits?: ExportCredits
