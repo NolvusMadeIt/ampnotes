@@ -828,15 +828,16 @@ export function NeoApp({
               onLoad={onMarketplaceLoad}
               onError={onMarketplaceError}
             />
-            {marketplaceStatus !== 'ready' ? (
+            {marketplaceStatus === 'loading' ? (
+              <div className="pointer-events-none absolute right-4 top-4 rounded-md border border-line/20 bg-surface/95 px-3 py-2 text-xs font-semibold text-muted shadow-panel">
+                Loading marketplace...
+              </div>
+            ) : null}
+            {marketplaceStatus === 'error' ? (
               <div className="pointer-events-none absolute inset-0 grid place-items-center bg-bg/80">
                 <div className="pointer-events-auto max-w-md rounded-xl border border-line/20 bg-surface p-5 text-center shadow-panel">
-                  <h3 className="editorial-heading text-xl font-semibold">
-                    {marketplaceStatus === 'error' ? 'Marketplace could not load' : 'Opening marketplace...'}
-                  </h3>
-                  <p className="mt-2 text-sm text-muted">
-                    Make sure the marketplace site is running locally before opening this page.
-                  </p>
+                  <h3 className="editorial-heading text-xl font-semibold">Marketplace source unavailable</h3>
+                  <p className="mt-2 text-sm text-muted">Check the marketplace URL in Settings, then try again.</p>
                   <div className="mt-4 flex justify-center gap-2">
                     <Button variant="secondary" onClick={onRetryMarketplace}>
                       Retry

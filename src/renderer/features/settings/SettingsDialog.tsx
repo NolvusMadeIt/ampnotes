@@ -24,9 +24,12 @@ interface SettingsDialogProps {
   currentTheme: ThemeMode
   appearance: AppearanceSettingsDTO
   marketplaceState: MarketplaceStateDTO
+  marketplaceBaseUrl: string
+  defaultMarketplaceBaseUrl: string
   onClose?: () => void
   onThemeChange: (theme: ThemeMode) => Promise<void>
   onAppearanceChange: (appearance: AppearanceSettingsDTO) => Promise<void>
+  onMarketplaceBaseUrlChange: (url: string) => Promise<void>
   onRegisterPlugin: (manifest: CreatePluginManifestInput) => Promise<void>
   onImportPluginManifestFile: () => Promise<void>
   onImportPluginFromFolder: () => Promise<void>
@@ -516,9 +519,12 @@ export function SettingsDialog({
   currentTheme,
   appearance,
   marketplaceState,
+  marketplaceBaseUrl,
+  defaultMarketplaceBaseUrl,
   onClose,
   onThemeChange,
   onAppearanceChange,
+  onMarketplaceBaseUrlChange,
   onRegisterPlugin,
   onImportPluginManifestFile,
   onImportPluginFromFolder,
@@ -548,6 +554,7 @@ export function SettingsDialog({
   )
   const [apiKey, setApiKey] = useState('')
   const [fontScaleDraft, setFontScaleDraft] = useState(appearance.fontScale)
+  const [marketplaceUrlDraft, setMarketplaceUrlDraft] = useState(marketplaceBaseUrl)
   const [pluginManifestJson, setPluginManifestJson] = useState('')
   const [pluginMarketplaceCode, setPluginMarketplaceCode] = useState('')
   const [editingPluginId, setEditingPluginId] = useState<string | null>(null)
@@ -620,6 +627,10 @@ export function SettingsDialog({
   useEffect(() => {
     setFontScaleDraft(appearance.fontScale)
   }, [appearance.fontScale])
+
+  useEffect(() => {
+    setMarketplaceUrlDraft(marketplaceBaseUrl)
+  }, [marketplaceBaseUrl])
 
   const runAction = async (actionKey: string, operation: () => Promise<void>) => {
     setMarketplaceError(null)
@@ -994,6 +1005,55 @@ export function SettingsDialog({
                 }}
               />
             </label>
+          </section>
+
+          <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
+            <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+              Marketplace Source
+              <HelpTooltip text="Use the deployed marketplace site when it is ready, or localhost while developing." />
+            </h3>
+            {marketplaceError && (
+              <p className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {marketplaceError}
+              </p>
+            )}
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">Marketplace URL</span>
+              <input
+                value={marketplaceUrlDraft}
+                onChange={(event) => setMarketplaceUrlDraft(event.target.value)}
+                placeholder="https://your-marketplace.vercel.app/"
+                className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 outline-none focus:border-accent/10"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busyKey === 'marketplace-url-save'}
+                onClick={() =>
+                  runAction('marketplace-url-save', async () => {
+                    await onMarketplaceBaseUrlChange(marketplaceUrlDraft)
+                  })
+                }
+              >
+                Save URL
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={busyKey === 'marketplace-url-reset'}
+                onClick={() =>
+                  runAction('marketplace-url-reset', async () => {
+                    setMarketplaceUrlDraft(defaultMarketplaceBaseUrl)
+                    await onMarketplaceBaseUrlChange(defaultMarketplaceBaseUrl)
+                  })
+                }
+              >
+                Use default
+              </Button>
+            </div>
+            <p className="text-xs text-muted">Default: {defaultMarketplaceBaseUrl}</p>
           </section>
 
           <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">

@@ -36,7 +36,10 @@ const EMPTY_MARKETPLACE_STATE: MarketplaceStateDTO = {
   activeThemeId: null
 }
 
-const MARKETPLACE_URL = import.meta.env.VITE_AMP_MARKETPLACE_URL ?? 'http://localhost:4200/'
+const DEFAULT_MARKETPLACE_URL =
+  import.meta.env.VITE_AMP_MARKETPLACE_URL ??
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:4200/' : 'https://ampmarketplace.vercel.app/')
+const MARKETPLACE_URL_STORAGE_KEY = 'ampnotes.marketplace-url.v1'
 
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
@@ -56,13 +59,14 @@ const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APP_VERSION = '0.1.2'
 
 function buildMarketplaceUrl(
+  baseUrl: string,
   theme: ThemeMode,
   appearance: AppearanceSettingsDTO,
   activeMarketplaceThemeId: string | undefined,
   filters: MarketplaceFiltersState
 ): string {
   try {
-    const url = new URL(MARKETPLACE_URL)
+    const url = new URL(baseUrl)
     url.searchParams.set('embedded', '1')
     url.searchParams.set('ampTheme', resolveTheme(theme))
     url.searchParams.set('ampPreset', appearance.themePreset)
@@ -78,7 +82,30 @@ function buildMarketplaceUrl(
     }
     return url.toString()
   } catch {
-    return 'http://localhost:4200/?embedded=1'
+    return `${DEFAULT_MARKETPLACE_URL}?embedded=1`
+  }
+}
+
+function normalizeMarketplaceBaseUrl(value: string): string {
+  const url = new URL(value.trim())
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error('Marketplace URL must start with https:// or http://.')
+  }
+  return url.toString()
+}
+
+function readMarketplaceBaseUrl(): string {
+  if (typeof window === 'undefined') {
+    return DEFAULT_MARKETPLACE_URL
+  }
+  const stored = window.localStorage.getItem(MARKETPLACE_URL_STORAGE_KEY)
+  if (!stored) {
+    return DEFAULT_MARKETPLACE_URL
+  }
+  try {
+    return normalizeMarketplaceBaseUrl(stored)
+  } catch {
+    return DEFAULT_MARKETPLACE_URL
   }
 }
 
@@ -105,6 +132,7 @@ export default function Routes() {
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [marketplaceLoadKey, setMarketplaceLoadKey] = useState(0)
   const [marketplaceStatus, setMarketplaceStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [marketplaceBaseUrl, setMarketplaceBaseUrl] = useState(readMarketplaceBaseUrl)
   const [marketplaceFilters, setMarketplaceFilters] =
     useState<MarketplaceFiltersState>(DEFAULT_MARKETPLACE_FILTERS)
 
@@ -165,12 +193,20 @@ export default function Routes() {
   }, [activeMarketplaceTheme?.tokens, appearance, theme])
 
   const marketplaceUrl = useMemo(() => {
-    return buildMarketplaceUrl(theme, appearance, activeMarketplaceTheme?.id, marketplaceFilters)
-  }, [activeMarketplaceTheme?.id, appearance.themePreset, marketplaceFilters, theme])
+    return buildMarketplaceUrl(marketplaceBaseUrl, theme, appearance, activeMarketplaceTheme?.id, marketplaceFilters)
+  }, [activeMarketplaceTheme?.id, appearance.themePreset, marketplaceBaseUrl, marketplaceFilters, theme])
 
   const handleMarketplaceFiltersChange = useCallback((filters: MarketplaceFiltersState) => {
     setMarketplaceStatus('loading')
     setMarketplaceFilters(filters)
+  }, [])
+
+  const handleMarketplaceBaseUrlChange = useCallback((nextUrl: string) => {
+    const normalized = normalizeMarketplaceBaseUrl(nextUrl)
+    window.localStorage.setItem(MARKETPLACE_URL_STORAGE_KEY, normalized)
+    setMarketplaceBaseUrl(normalized)
+    setMarketplaceStatus('loading')
+    setMarketplaceLoadKey((current) => current + 1)
   }, [])
 
   const openMarketplace = useCallback(() => {
@@ -1088,6 +1124,8 @@ export default function Routes() {
       currentTheme={theme}
       appearance={appearance}
       marketplaceState={marketplaceState}
+      marketplaceBaseUrl={marketplaceBaseUrl}
+      defaultMarketplaceBaseUrl={DEFAULT_MARKETPLACE_URL}
       onThemeChange={async (nextTheme) => {
         setTheme(nextTheme)
         await api.settings.setTheme(profile.id, nextTheme)
@@ -1096,6 +1134,7 @@ export default function Routes() {
         setAppearance(nextAppearance)
         await api.settings.setAppearance(profile.id, nextAppearance)
       }}
+      onMarketplaceBaseUrlChange={async (nextUrl) => handleMarketplaceBaseUrlChange(nextUrl)}
       onRegisterPlugin={handleRegisterPlugin}
       onImportPluginManifestFile={handleImportPluginManifestFile}
       onImportPluginFromFolder={handleImportPluginFromFolder}
