@@ -82,11 +82,14 @@ export interface UpdateTemplateInput extends CreateTemplateInput {
 }
 
 export interface CreatePluginManifestInput {
+  schemaVersion?: 1
   id: string
   name: string
   version: string
   description?: string
   author?: string
+  compatibility?: string
+  screenshot?: string
   entry?: string
   homepage?: string
   socials?: CreatorSocialLinks
@@ -107,11 +110,14 @@ export interface ThemeTokenMap {
 }
 
 export interface CreateThemeManifestInput {
+  schemaVersion?: 1
   id: string
   name: string
   version: string
   description?: string
   author?: string
+  compatibility?: string
+  screenshot?: string
   homepage?: string
   socials?: CreatorSocialLinks
   credits?: ExportCredits

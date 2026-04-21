@@ -56,11 +56,14 @@ interface SettingsDialogProps {
 }
 
 const PLUGIN_MANIFEST_PLACEHOLDER = `{
+  "schemaVersion": 1,
   "id": "tools.wordcount",
   "name": "Word Count",
   "version": "1.0.0",
   "description": "Adds {wordcount} and {tools.wordcount} token support in the markdown editor.",
   "author": "Your Team",
+  "compatibility": "AMP 0.1.0+",
+  "screenshot": "/screenshots/wordcount.svg",
   "socials": {
     "github": "https://github.com/your-team"
   },
@@ -76,11 +79,14 @@ const PLUGIN_MANIFEST_PLACEHOLDER = `{
 }`
 
 const THEME_MANIFEST_PLACEHOLDER = `{
+  "schemaVersion": 1,
   "id": "theme.sunset-paper",
   "name": "Sunset Paper",
   "version": "1.0.0",
   "description": "Warm paper tones for focused writing.",
   "author": "Your Team",
+  "compatibility": "AMP 0.1.0+",
+  "screenshot": "/screenshots/sunset-paper.svg",
   "socials": {
     "github": "https://github.com/your-team"
   },
@@ -453,6 +459,27 @@ function createMarketplaceCode(kind: MarketplaceCodeKind, manifest: CreatePlugin
   return `${MARKETPLACE_CODE_PREFIXES[kind]}${toBase64Url(JSON.stringify(manifest))}`
 }
 
+function validateMarketplaceCodeManifest(
+  kind: MarketplaceCodeKind,
+  manifest: CreatePluginManifestInput | CreateThemeManifestInput
+): void {
+  if (manifest.schemaVersion !== 1) {
+    throw new Error('Marketplace code must use manifest schemaVersion 1.')
+  }
+  if (!manifest.compatibility?.trim()) {
+    throw new Error('Marketplace code must include compatibility metadata.')
+  }
+  if (!manifest.screenshot?.trim()) {
+    throw new Error('Marketplace code must include a screenshot.')
+  }
+  if (kind === 'plugin' && !('entry' in manifest && manifest.entry?.trim())) {
+    throw new Error('Plugin marketplace code must include an entry file.')
+  }
+  if (kind === 'theme' && !('tokens' in manifest)) {
+    throw new Error('Theme marketplace code must include theme tokens.')
+  }
+}
+
 function decodeMarketplaceCode(kind: MarketplaceCodeKind, rawCode: string): CreatePluginManifestInput | CreateThemeManifestInput {
   const trimmed = rawCode.trim()
   if (!trimmed) {
@@ -471,11 +498,14 @@ function decodeMarketplaceCode(kind: MarketplaceCodeKind, rawCode: string): Crea
   } catch {
     throw new Error('Marketplace code is invalid or corrupted.')
   }
-  return kind === 'plugin' ? parsePluginManifestJson(manifestJson) : parseThemeManifestJson(manifestJson)
+  const manifest = kind === 'plugin' ? parsePluginManifestJson(manifestJson) : parseThemeManifestJson(manifestJson)
+  validateMarketplaceCodeManifest(kind, manifest)
+  return manifest
 }
 
 async function copyMarketplaceCode(kind: MarketplaceCodeKind, rawManifestJson: string): Promise<void> {
   const manifest = kind === 'plugin' ? parsePluginManifestJson(rawManifestJson) : parseThemeManifestJson(rawManifestJson)
+  validateMarketplaceCodeManifest(kind, manifest)
   await navigator.clipboard.writeText(createMarketplaceCode(kind, manifest))
 }
 

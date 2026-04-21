@@ -5,6 +5,14 @@ import { ProfileRepo } from '@main/db/repos/profileRepo'
 
 type DeepLinkKind = 'plugin' | 'theme'
 
+interface MarketplaceManifestMetadata {
+  schemaVersion?: number
+  compatibility?: string
+  screenshot?: string
+  entry?: string
+  tokens?: unknown
+}
+
 interface DeepLinkInstalledPayload {
   kind: DeepLinkKind
   id: string
@@ -90,6 +98,28 @@ function decodeMarketplaceCode(rawCode: string, declaredKind: string | null): un
   }
 }
 
+function assertMarketplaceManifestV1(kind: DeepLinkKind, manifest: unknown): void {
+  if (!manifest || typeof manifest !== 'object') {
+    throw new Error('Marketplace manifest is missing.')
+  }
+  const metadata = manifest as MarketplaceManifestMetadata
+  if (metadata.schemaVersion !== 1) {
+    throw new Error('Marketplace manifest must use schemaVersion 1.')
+  }
+  if (!metadata.compatibility?.trim()) {
+    throw new Error('Marketplace manifest must include compatibility metadata.')
+  }
+  if (!metadata.screenshot?.trim()) {
+    throw new Error('Marketplace manifest must include a screenshot.')
+  }
+  if (kind === 'plugin' && !metadata.entry?.trim()) {
+    throw new Error('Plugin manifest must include an entry file.')
+  }
+  if (kind === 'theme' && !metadata.tokens) {
+    throw new Error('Theme manifest must include token data.')
+  }
+}
+
 export async function handleInstallDeepLink(
   url: string,
   profileRepo: ProfileRepo,
@@ -134,6 +164,7 @@ export async function handleInstallDeepLink(
     const kind = inferKind(declaredKind, manifestJson)
 
     if (kind === 'plugin') {
+      assertMarketplaceManifestV1(kind, manifestJson)
       const pluginManifest = normalizePluginManifest(pluginManifestSchema.parse(manifestJson))
       const installed = settingsRepo.registerPlugin(session.profileId, pluginManifest, 'marketplace')
       const enabled = false
@@ -143,6 +174,7 @@ export async function handleInstallDeepLink(
     }
 
     if (kind === 'theme') {
+      assertMarketplaceManifestV1(kind, manifestJson)
       const themeManifest = normalizeThemeManifest(themeManifestSchema.parse(manifestJson))
       const installed = settingsRepo.registerTheme(session.profileId, themeManifest, 'marketplace')
       const active = false

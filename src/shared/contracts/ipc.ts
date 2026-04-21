@@ -87,8 +87,14 @@ const exportCreditsSchema = z.object({
 
 const marketplaceManifestMetadataSchema = z.object({
   schemaVersion: z.literal(1).optional(),
-  compatibility: z.string().trim().max(80).optional(),
-  screenshot: z.string().trim().max(240).optional()
+  compatibility: z.string().trim().min(1).max(80).optional(),
+  screenshot: z
+    .string()
+    .trim()
+    .min(1)
+    .max(240)
+    .regex(/^(https:\/\/|\/)[^\s<>]+$/i, 'Screenshot must be an HTTPS URL or marketplace-relative path')
+    .optional()
 })
 
 const colorTokenNames = new Set([
