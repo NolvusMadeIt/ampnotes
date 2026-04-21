@@ -9,6 +9,8 @@ import { RefineModal } from '@renderer/features/refine/RefineModal'
 import { ShareDialog } from '@renderer/features/sharing/ShareDialog'
 import { ToastHost, type AppToast } from '@renderer/components/ui/ToastHost'
 import { ConfirmDialog } from '@renderer/components/ui/ConfirmDialog'
+import { Button } from '@renderer/components/ui/Button'
+import { Modal } from '@renderer/components/ui/Modal'
 import { getApi } from '@renderer/lib/api-client'
 import { applyAppearance, applyTheme, resolveTheme } from '@renderer/lib/theme'
 import {
@@ -58,6 +60,14 @@ const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APP_VERSION = '0.1.2'
+
+interface PaidMarketplaceInstallRequest {
+  open: boolean
+  kind: 'plugin' | 'theme'
+  code: string
+  purchaseUrl: string
+  gumroadProductPermalink: string
+}
 
 function buildMarketplaceUrl(
   baseUrl: string,
@@ -136,6 +146,9 @@ export default function Routes() {
   const [marketplaceBaseUrl, setMarketplaceBaseUrl] = useState(readMarketplaceBaseUrl)
   const [marketplaceFilters, setMarketplaceFilters] =
     useState<MarketplaceFiltersState>(DEFAULT_MARKETPLACE_FILTERS)
+  const [paidInstall, setPaidInstall] = useState<PaidMarketplaceInstallRequest | null>(null)
+  const [gumroadLicenseKey, setGumroadLicenseKey] = useState('')
+  const [gumroadVerifying, setGumroadVerifying] = useState(false)
 
   const [refineOpen, setRefineOpen] = useState(false)
   const [refineConfigured, setRefineConfigured] = useState(false)
@@ -444,6 +457,61 @@ export default function Routes() {
     [api.marketplace, flashToast, profile, refreshWorkspace, requestConfirm]
   )
 
+  const verifyPaidMarketplaceInstall = useCallback(async () => {
+    if (!profile || !paidInstall) {
+      return
+    }
+
+    const licenseKey = gumroadLicenseKey.trim()
+    if (!licenseKey) {
+      flashToast('Enter the Gumroad license key first.', 'warning')
+      return
+    }
+
+    setGumroadVerifying(true)
+    try {
+      const form = new URLSearchParams({
+        product_permalink: paidInstall.gumroadProductPermalink,
+        license_key: licenseKey,
+        increment_uses_count: 'false'
+      })
+      const response = await fetch('https://api.gumroad.com/v2/licenses/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: form.toString()
+      })
+      const result = (await response.json()) as {
+        success?: boolean
+        message?: string
+        purchase?: {
+          refunded?: boolean
+          chargebacked?: boolean
+          disputed?: boolean
+        }
+      }
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message ?? 'Gumroad could not verify that license.')
+      }
+
+      if (result.purchase?.refunded || result.purchase?.chargebacked || result.purchase?.disputed) {
+        throw new Error('That license is not eligible for install.')
+      }
+
+      const installed = await api.marketplace.installCode(profile.id, paidInstall.kind, paidInstall.code)
+      setPaidInstall(null)
+      setGumroadLicenseKey('')
+      handleMarketplaceInstalledEvent(installed)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'License verification failed.'
+      flashToast(message, 'danger')
+    } finally {
+      setGumroadVerifying(false)
+    }
+  }, [api.marketplace, flashToast, gumroadLicenseKey, handleMarketplaceInstalledEvent, paidInstall, profile])
+
   useEffect(() => {
     void refreshAuth()
   }, [refreshAuth])
@@ -536,14 +604,35 @@ export default function Routes() {
         type?: string
         kind?: 'plugin' | 'theme'
         code?: string
+        purchaseUrl?: string
+        gumroadProductPermalink?: string
       }
 
       if (
         payload.source !== 'ampmarketplace' ||
-        payload.type !== 'install' ||
         (payload.kind !== 'plugin' && payload.kind !== 'theme') ||
         typeof payload.code !== 'string'
       ) {
+        return
+      }
+
+      if (payload.type === 'purchase') {
+        if (typeof payload.purchaseUrl !== 'string' || typeof payload.gumroadProductPermalink !== 'string') {
+          flashToast('This paid listing is missing Gumroad verification metadata.', 'danger')
+          return
+        }
+        setPaidInstall({
+          open: true,
+          kind: payload.kind,
+          code: payload.code,
+          purchaseUrl: payload.purchaseUrl,
+          gumroadProductPermalink: payload.gumroadProductPermalink
+        })
+        setGumroadLicenseKey('')
+        return
+      }
+
+      if (payload.type !== 'install') {
         return
       }
 
@@ -1356,6 +1445,58 @@ export default function Routes() {
         onCancel={() => resolveConfirm(false)}
         onConfirm={() => resolveConfirm(true)}
       />
+
+      <Modal
+        open={Boolean(paidInstall?.open)}
+        title="Verify Gumroad license"
+        widthClass="max-w-xl"
+        onClose={() => {
+          setPaidInstall(null)
+          setGumroadLicenseKey('')
+        }}
+      >
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-muted">
+            Purchase the asset through Gumroad, then paste the license key here. AMP verifies the key before installing
+            the marketplace asset.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (paidInstall?.purchaseUrl) {
+                  window.open(paidInstall.purchaseUrl, '_blank', 'noopener,noreferrer')
+                }
+              }}
+            >
+              Open Gumroad
+            </Button>
+          </div>
+          <label className="block text-sm font-semibold">
+            License key
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-line/20 bg-surface2 px-3 text-sm outline-none focus:border-accent"
+              value={gumroadLicenseKey}
+              onChange={(event) => setGumroadLicenseKey(event.target.value)}
+              placeholder="Paste Gumroad license key"
+            />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setPaidInstall(null)
+                setGumroadLicenseKey('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" disabled={gumroadVerifying} onClick={verifyPaidMarketplaceInstall}>
+              {gumroadVerifying ? 'Verifying...' : 'Verify and install'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <ToastHost toasts={toasts} onClose={removeToast} />
     </>
