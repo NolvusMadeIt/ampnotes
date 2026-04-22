@@ -9,6 +9,7 @@ import type {
   FontFamilyOption,
   MarketplaceStateDTO,
   MarketplaceFolderResult,
+  PromptDefaultView,
   ThemePresetOption,
   ThemeMode
 } from '@shared/types'
@@ -135,6 +136,12 @@ const PRESET_OPTIONS: Array<{ value: ThemePresetOption; label: string }> = [
   { value: 'graphite', label: 'Graphite' },
   { value: 'forest', label: 'Forest' },
   { value: 'sand', label: 'Sand' }
+]
+
+const DEFAULT_PROMPT_VIEW_OPTIONS: Array<{ value: PromptDefaultView; label: string }> = [
+  { value: 'read', label: 'Read' },
+  { value: 'summary', label: 'Summary' },
+  { value: 'edit', label: 'Edit' }
 ]
 
 type ThemeBuilderToken =
@@ -656,6 +663,7 @@ export function SettingsDialog({
   const showThemes = activeSection === 'themes'
   const showCustomizeThemes = activeSection === 'customizeThemes'
   const showAdmin = activeSection === 'admin'
+  const formRailClass = 'max-w-[920px]'
   const builderColors = themeBuilder[builderMode]
   const activeTokenLabel = useMemo(() => {
     if (!activeBuilderToken) {
@@ -717,7 +725,8 @@ export function SettingsDialog({
     const merged: AppearanceSettingsDTO = {
       fontFamily: next.fontFamily ?? appearance.fontFamily,
       fontScale: next.fontScale ?? appearance.fontScale,
-      themePreset: next.themePreset ?? appearance.themePreset
+      themePreset: next.themePreset ?? appearance.themePreset,
+      defaultPromptView: next.defaultPromptView ?? appearance.defaultPromptView
     }
     await onAppearanceChange(merged)
   }
@@ -954,7 +963,7 @@ export function SettingsDialog({
               Theme Mode
               <HelpTooltip text="Pick the light/dark/system mode. Presets and marketplace tokens apply on top." />
             </h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className={`grid grid-cols-3 gap-2 ${formRailClass}`}>
               {(['light', 'dark', 'system'] as ThemeMode[]).map((theme) => (
                 <Button
                   key={theme}
@@ -973,7 +982,7 @@ export function SettingsDialog({
               Reading & Typography
               <HelpTooltip text="Choose reading fonts, font size, and either a built-in preset or an installed custom theme." />
             </h3>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className={`grid gap-3 md:grid-cols-2 ${formRailClass}`}>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium">Font family</span>
                 <select
@@ -1026,7 +1035,7 @@ export function SettingsDialog({
               </label>
             </div>
 
-            <label className="block text-sm">
+            <label className={`block text-sm ${formRailClass}`}>
               <span className="mb-1 inline-flex items-center justify-between gap-2 font-medium">
                 <span>Font size</span>
                 <span className="mono-meta text-xs text-muted">{fontScaleDraft}%</span>
@@ -1060,6 +1069,29 @@ export function SettingsDialog({
 
           <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
             <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
+              Display
+              <HelpTooltip text="Choose which tab opens first whenever you open a prompt card from the workspace lane." />
+            </h3>
+            <label className={`block text-sm ${formRailClass}`}>
+              <span className="mb-1 block font-medium">Default prompt tab</span>
+              <select
+                className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 outline-none focus:border-accent/10"
+                value={appearance.defaultPromptView}
+                onChange={async (event) => {
+                  await applyAppearance({ defaultPromptView: event.target.value as PromptDefaultView })
+                }}
+              >
+                {DEFAULT_PROMPT_VIEW_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </section>
+
+          <section className="space-y-3 rounded-xl border border-line/20 bg-surface2 p-4">
+            <h3 className="inline-flex items-center gap-1.5 text-base font-semibold">
               Marketplace Source
               <HelpTooltip text="Use the deployed marketplace site when it is ready, or localhost while developing." />
             </h3>
@@ -1068,7 +1100,7 @@ export function SettingsDialog({
                 {marketplaceError}
               </p>
             )}
-            <label className="block text-sm">
+            <label className={`block text-sm ${formRailClass}`}>
               <span className="mb-1 block font-medium">Marketplace URL</span>
               <input
                 value={marketplaceUrlDraft}
@@ -1118,7 +1150,7 @@ export function SettingsDialog({
               )}
             </div>
             <input
-              className="h-10 w-full rounded-lg border border-line/20 bg-surface px-3 outline-none focus:border-accent/10"
+              className={`h-10 w-full rounded-lg border border-line/20 bg-surface px-3 outline-none focus:border-accent/10 ${formRailClass}`}
               placeholder={isGroqKeyConfigured ? 'Enter new key to replace saved key' : 'gsk_...'}
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
@@ -1419,7 +1451,7 @@ export function SettingsDialog({
 
           <article className="space-y-3 rounded-lg border border-line/20 bg-surface p-3">
             <p className="text-sm font-semibold">Creator Profile</p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className={`grid gap-3 md:grid-cols-2 ${formRailClass}`}>
               <label className="block text-xs">
                 <span className="mb-1 block font-medium text-muted">Display name</span>
                 <input
@@ -1492,7 +1524,7 @@ export function SettingsDialog({
             <p className="text-xs text-muted">
               Configure a local Admin PIN for sensitive actions. This PIN is stored securely per profile on this device.
             </p>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className={`grid gap-3 md:grid-cols-2 ${formRailClass}`}>
               <label className="block text-xs">
                 <span className="mb-1 block font-medium text-muted">Set Admin PIN</span>
                 <input

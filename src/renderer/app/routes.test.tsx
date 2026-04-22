@@ -93,12 +93,14 @@ function buildApiMock() {
       getAppearance: vi.fn().mockResolvedValue({
         fontFamily: 'merriweather',
         fontScale: 100,
-        themePreset: 'midnight'
+        themePreset: 'midnight',
+        defaultPromptView: 'read'
       }),
       setAppearance: vi.fn().mockResolvedValue({
         fontFamily: 'merriweather',
         fontScale: 100,
-        themePreset: 'midnight'
+        themePreset: 'midnight',
+        defaultPromptView: 'read'
       })
     },
     marketplace: {

@@ -331,10 +331,12 @@ export const shareSelectedExportSchema = z.object({
 export const themeSchema = z.enum(['light', 'dark', 'system'])
 export const fontFamilySchema = z.enum(['merriweather', 'sourceSerif', 'lora', 'ibmPlexSans', 'publicSans'])
 export const themePresetSchema = z.enum(['midnight', 'ocean', 'graphite', 'forest', 'sand'])
+export const promptDefaultViewSchema = z.enum(['summary', 'read', 'edit'])
 export const appearanceSchema = z.object({
   fontFamily: fontFamilySchema,
   fontScale: z.number().int().min(90).max(125),
-  themePreset: themePresetSchema
+  themePreset: themePresetSchema,
+  defaultPromptView: promptDefaultViewSchema
 })
 
 export const updateThemeSchema = z.object({

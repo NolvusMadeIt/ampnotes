@@ -12,6 +12,7 @@ import type {
   InstalledPluginDTO,
   InstalledThemeDTO,
   MarketplaceStateDTO,
+  PromptDefaultView,
   ThemePresetOption,
   ThemeMode
 } from '@shared/types'
@@ -31,7 +32,8 @@ const PERMISSION_ALLOWLIST = new Set([
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
-  themePreset: 'midnight'
+  themePreset: 'midnight',
+  defaultPromptView: 'read'
 }
 
 const DEFAULT_ADMIN_PROFILE: AdminProfileDTO = {
@@ -191,6 +193,13 @@ function normalizeThemePreset(value: unknown): ThemePresetOption {
   return DEFAULT_APPEARANCE.themePreset
 }
 
+function normalizePromptDefaultView(value: unknown): PromptDefaultView {
+  if (value === 'summary' || value === 'read' || value === 'edit') {
+    return value
+  }
+  return DEFAULT_APPEARANCE.defaultPromptView
+}
+
 function normalizeAppearance(input: Partial<AppearanceSettingsDTO> | null | undefined): AppearanceSettingsDTO {
   const fontScaleRaw = Number(input?.fontScale)
   const fontScale =
@@ -201,7 +210,8 @@ function normalizeAppearance(input: Partial<AppearanceSettingsDTO> | null | unde
   return {
     fontFamily: normalizeFontFamily(input?.fontFamily),
     fontScale,
-    themePreset: normalizeThemePreset(input?.themePreset)
+    themePreset: normalizeThemePreset(input?.themePreset),
+    defaultPromptView: normalizePromptDefaultView(input?.defaultPromptView)
   }
 }
 

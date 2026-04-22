@@ -45,7 +45,8 @@ describe('IPC contract schemas', () => {
     const appearance = appearanceSchema.parse({
       fontFamily: 'merriweather',
       fontScale: 104,
-      themePreset: 'midnight'
+      themePreset: 'midnight',
+      defaultPromptView: 'read'
     })
     expect(appearance.fontScale).toBe(104)
   })

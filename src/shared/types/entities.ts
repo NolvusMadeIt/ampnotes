@@ -1,11 +1,13 @@
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type FontFamilyOption = 'merriweather' | 'sourceSerif' | 'lora' | 'ibmPlexSans' | 'publicSans'
 export type ThemePresetOption = 'midnight' | 'ocean' | 'graphite' | 'forest' | 'sand'
+export type PromptDefaultView = 'summary' | 'read' | 'edit'
 
 export interface AppearanceSettingsDTO {
   fontFamily: FontFamilyOption
   fontScale: number
   themePreset: ThemePresetOption
+  defaultPromptView: PromptDefaultView
 }
 
 export interface ProfileDTO {

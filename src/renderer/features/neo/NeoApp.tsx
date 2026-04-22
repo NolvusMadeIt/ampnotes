@@ -14,11 +14,14 @@ import {
   ArrowUpRight,
   ChevronRight,
   ChevronsUpDown,
+  Copy,
+  EllipsisVertical,
   FilePlus2,
   Filter,
   Folder,
   FolderPlus,
   FolderOpen,
+  House,
   Heart,
   Import,
   LayoutTemplate,
@@ -27,13 +30,16 @@ import {
   PencilLine,
   Pin,
   Search,
+  Share2,
+  ShieldCheck,
   Settings2,
   Sparkles,
   Star,
   TerminalSquare,
+  Trash2,
   X
 } from 'lucide-react'
-import type { PromptDTO, TemplateDTO } from '@shared/types'
+import type { PromptDTO, PromptDefaultView, TemplateDTO } from '@shared/types'
 import { formatPromptValidationIssues, validatePromptForSave, validatePromptForShare } from '@shared/validation/prompt'
 import { Button } from '@renderer/components/ui/Button'
 import { GroqIcon } from '@renderer/components/ui/GroqIcon'
@@ -71,6 +77,7 @@ interface NeoAppProps {
   marketplaceLoadKey: number
   marketplaceStatus: 'loading' | 'ready' | 'error'
   marketplaceFilters: MarketplaceFiltersState
+  defaultPromptView: PromptDefaultView
   settingsView?: ReactNode
   legalView?: ReactNode
   onSelectPromptId: (id: string | null) => void
@@ -440,6 +447,16 @@ function readLocalStorage(key: string): string | null {
   return window.localStorage.getItem(key)
 }
 
+function resolveDefaultFocus(view: PromptDefaultView): NeoFocus {
+  if (view === 'edit') {
+    return 'edit'
+  }
+  if (view === 'summary') {
+    return 'browse'
+  }
+  return 'read'
+}
+
 function writeLocalStorage(key: string, value: string): void {
   if (typeof window === 'undefined' || typeof window.localStorage?.setItem !== 'function') {
     return
@@ -463,6 +480,7 @@ export function NeoApp({
   marketplaceLoadKey,
   marketplaceStatus,
   marketplaceFilters,
+  defaultPromptView,
   settingsView,
   legalView,
   onSelectPromptId,
@@ -493,7 +511,8 @@ export function NeoApp({
   onDeleteTemplate
 }: NeoAppProps) {
   const [lane, setLane] = useState<NeoLane>('all')
-  const [focus, setFocus] = useState<NeoFocus>('browse')
+  const defaultFocus = useMemo(() => resolveDefaultFocus(defaultPromptView), [defaultPromptView])
+  const [focus, setFocus] = useState<NeoFocus>(defaultFocus)
   const [search, setSearch] = useState('')
   const [projectSearch, setProjectSearch] = useState('')
   const [marketplaceSearchDraft, setMarketplaceSearchDraft] = useState(marketplaceFilters.q)
@@ -765,6 +784,13 @@ export function NeoApp({
     }
   }, [lane])
 
+  useEffect(() => {
+    if (!selectedPromptId) {
+      return
+    }
+    setFocus(defaultFocus)
+  }, [defaultFocus, selectedPromptId])
+
   const readyCount = prompts.filter((item) => qualityScore(item) >= 80).length
   const draftCount = prompts.length - readyCount
   const totalPromptCount = prompts.length
@@ -772,6 +798,13 @@ export function NeoApp({
   const marketplaceOpen = page === 'marketplace'
   const settingsOpen = page === 'settings'
   const legalOpen = page === 'about' || page === 'tos'
+
+  const openAllPromptsHome = () => {
+    setLane('all')
+    setFocus('browse')
+    onSelectTag(null)
+    onOpenWorkspace()
+  }
 
   function updateMarketplaceFilters(updates: Partial<MarketplaceFiltersState>): void {
     onMarketplaceFiltersChange({
@@ -840,7 +873,7 @@ export function NeoApp({
     })
     setLane(`folder:${folderName}`)
     onSelectPromptId(prompt.id)
-    setFocus('read')
+    setFocus(defaultFocus)
   }
 
   function moveTagToFolder(tagName: string, folderName: string): void {
@@ -870,12 +903,12 @@ export function NeoApp({
     <div className="border-t border-line/20 px-3 py-3">
       <p className="mono-meta mb-1 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">App</p>
       <div className="space-y-0.5">
-        {page !== 'workspace' ? (
-          <button type="button" className={navRowClass(false)} onClick={onOpenWorkspace}>
-            <FolderOpen size={14} />
-            <span className="truncate">Workspace</span>
-          </button>
-        ) : null}
+          {page !== 'workspace' ? (
+            <button type="button" className={navRowClass(false)} onClick={openAllPromptsHome}>
+              <FolderOpen size={14} />
+              <span className="truncate">Workspace</span>
+            </button>
+          ) : null}
         <button type="button" className={navRowClass(false)} onClick={onOpenShareImport}>
           <Import size={14} />
           <span className="truncate">Share / Import</span>
@@ -1162,10 +1195,9 @@ export function NeoApp({
             <div>
               <p className="mono-meta mb-1 px-2 text-[10px] uppercase tracking-[0.18em] text-muted">Workspace</p>
               <div className="space-y-0.5">
-                <button type="button" className={navRowClass(lane === 'all')} onClick={() => setLane('all')}>
-                  <FolderOpen size={14} />
-                  <span className="truncate">All prompts</span>
-                  <span className="ml-auto text-xs text-muted">{totalPromptCount}</span>
+                <button type="button" className={navRowClass(lane === 'all' && !activeTag)} onClick={openAllPromptsHome}>
+                  <House size={14} />
+                  <span className="truncate">Home</span>
                 </button>
                 <button type="button" className={navRowClass(lane === 'ready')} onClick={() => setLane('ready')}>
                   <Star size={14} />
@@ -1507,7 +1539,7 @@ export function NeoApp({
                       draggable
                       onClick={() => {
                         onSelectPromptId(prompt.id)
-                        setFocus('read')
+                        setFocus(defaultFocus)
                       }}
                       onContextMenu={(event) => {
                         event.preventDefault()
@@ -1589,6 +1621,7 @@ export function NeoApp({
                 onValidatePrompt={onValidatePrompt}
                 onSharePrompt={onSharePrompt}
                 onAddAsTemplate={onAddAsTemplate}
+                defaultPromptView={defaultPromptView}
               />
             ) : (
               <div className="grid h-full place-items-center p-6 text-center">
@@ -1629,7 +1662,7 @@ export function NeoApp({
             className={navSubRowClass(false)}
             onClick={() => {
               onSelectPromptId(contextPrompt.id)
-              setFocus('read')
+              setFocus(defaultFocus)
               setPromptMenu(null)
             }}
           >
@@ -1737,6 +1770,7 @@ interface NeoFocusPanelProps {
   onValidatePrompt: (prompt: PromptDTO) => Promise<void>
   onSharePrompt: (prompt: PromptDTO) => void
   onAddAsTemplate: (prompt: PromptDTO) => Promise<void>
+  defaultPromptView: PromptDefaultView
 }
 
 function NeoFocusPanel({
@@ -1753,7 +1787,8 @@ function NeoFocusPanel({
   onRefinePrompt,
   onValidatePrompt,
   onSharePrompt,
-  onAddAsTemplate
+  onAddAsTemplate,
+  defaultPromptView
 }: NeoFocusPanelProps) {
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
@@ -1894,6 +1929,110 @@ function NeoFocusPanel({
           </div>
         </div>
         <p className="text-xs text-muted">Added on {new Date(prompt.createdAt).toLocaleDateString()}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-line/10 pt-2">
+          <button
+            type="button"
+            className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs transition ${
+              focus === 'browse' ? 'border-accent/40 bg-accent/15 text-text' : 'border-line/20 bg-surface2 text-muted hover:text-text'
+            }`}
+            onClick={() => setFocus('browse')}
+            title="Summary"
+          >
+            <House size={14} />
+          </button>
+          <button
+            type="button"
+            className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs transition ${
+              focus === 'read' ? 'border-accent/40 bg-accent/15 text-text' : 'border-line/20 bg-surface2 text-muted hover:text-text'
+            }`}
+            onClick={() => setFocus('read')}
+            title="Read"
+          >
+            <Maximize2 size={14} />
+          </button>
+          <button
+            type="button"
+            className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs transition ${
+              focus === 'edit' ? 'border-accent/40 bg-accent/15 text-text' : 'border-line/20 bg-surface2 text-muted hover:text-text'
+            }`}
+            onClick={() => setFocus('edit')}
+            title="Edit"
+          >
+            <PencilLine size={14} />
+          </button>
+          <div className="mx-1 h-5 w-px bg-line/30" />
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+            onClick={() => onRefinePrompt(prompt)}
+            title="Improve"
+          >
+            <Sparkles size={14} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+            disabled={isValidating}
+            onClick={() => void onValidatePrompt(prompt)}
+            title={isValidating ? 'Validating...' : 'Validate'}
+          >
+            <ShieldCheck size={14} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+            onClick={() => void onCopyPrompt(prompt)}
+            title="Copy"
+          >
+            <Copy size={14} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+            onClick={() => onSharePrompt(prompt)}
+            title="Share"
+          >
+            <Share2 size={14} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+            onClick={async () => {
+              const issues = validatePromptForSave(form)
+              if (issues.length > 0) {
+                setValidationMessage(formatPromptValidationIssues(issues))
+                return
+              }
+              setValidationMessage(null)
+              await onAddAsTemplate({
+                ...prompt,
+                title: form.title.trim(),
+                content: form.content.trim(),
+                category: form.category.trim() || 'General',
+                tags: form.tags,
+                useCase: form.useCase.trim() || undefined,
+                aiTarget: form.aiTarget.trim() || undefined
+              })
+            }}
+            title="Add as Template"
+          >
+            <LayoutTemplate size={14} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-danger/25 bg-danger/10 px-2 text-xs text-danger transition hover:bg-danger/15"
+            onClick={() => void onDeletePrompt(prompt)}
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+          <div className="ml-auto inline-flex h-8 items-center rounded-md border border-line/20 bg-surface2 px-2 text-muted">
+            <EllipsisVertical size={14} />
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-muted">
+          Default open tab: {defaultPromptView === 'summary' ? 'Summary' : defaultPromptView === 'edit' ? 'Edit' : 'Read'}
+        </p>
         {focus === 'read' && (
           <div className="mt-2 grid gap-2 border-t border-line/10 pt-2 text-xs text-muted md:grid-cols-2 xl:grid-cols-4">
             <div>

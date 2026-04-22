@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AuthView } from '@renderer/features/auth/AuthView'
 import { NeoApp, type MarketplaceFiltersState, type NeoPage } from '@renderer/features/neo/NeoApp'
 import { AboutPage } from '@renderer/features/legal/AboutPage'
@@ -7,7 +7,7 @@ import { NewPromptModal } from '@renderer/features/prompts/NewPromptModal'
 import { SettingsDialog } from '@renderer/features/settings/SettingsDialog'
 import { RefineModal } from '@renderer/features/refine/RefineModal'
 import { ShareDialog } from '@renderer/features/sharing/ShareDialog'
-import { ToastHost, type AppToast } from '@renderer/components/ui/ToastHost'
+import { ToastHost, type AppToast, type AppToastAction } from '@renderer/components/ui/ToastHost'
 import { ConfirmDialog } from '@renderer/components/ui/ConfirmDialog'
 import { Button } from '@renderer/components/ui/Button'
 import { Modal } from '@renderer/components/ui/Modal'
@@ -47,7 +47,8 @@ const MARKETPLACE_URL_STORAGE_KEY = 'ampnotes.marketplace-url.v1'
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
-  themePreset: 'midnight'
+  themePreset: 'midnight',
+  defaultPromptView: 'read'
 }
 
 const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
@@ -59,7 +60,7 @@ const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
 }
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
-const DEFAULT_APP_VERSION = '0.1.3'
+const DEFAULT_APP_VERSION = '0.1.4'
 const VERIFIED_GUMROAD_LICENSES_STORAGE_KEY = 'ampnotes.gumroad.verified-products.v1'
 
 interface PaidMarketplaceInstallRequest {
@@ -68,6 +69,94 @@ interface PaidMarketplaceInstallRequest {
   code: string
   purchaseUrl: string
   gumroadProductPermalink: string
+}
+
+type UpdateEvent = {
+  type: 'available' | 'download-started' | 'download-progress' | 'downloaded' | 'scheduled' | 'error'
+  latestVersion?: string
+  currentVersion?: string
+  releaseUrl?: string
+  publishedAt?: string
+  updatesMarkdown?: string
+  updatesSourceUrl?: string
+  installTiming?: 'install_now' | 'app_close'
+  strategy?: 'next_launch'
+  percent?: number
+  transferred?: number
+  total?: number
+  bytesPerSecond?: number
+  message?: string
+}
+
+type UpdateCheckState = {
+  ok: boolean
+  updateAvailable: boolean
+  currentVersion: string
+  latestVersion?: string
+  releaseUrl?: string
+  publishedAt?: string
+  updatesMarkdown?: string
+  updatesSourceUrl?: string
+  reason?: string
+  packaged: boolean
+}
+
+function formatUpdateDate(value?: string): string {
+  if (!value) {
+    return ''
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  return date.toLocaleString()
+}
+
+function renderUpdateNotes(markdown: string): ReactNode {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n')
+  return (
+    <div className="space-y-3">
+      {lines.map((line, index) => {
+        const trimmed = line.trim()
+        if (!trimmed) {
+          return <div key={`spacer-${index}`} className="h-1" />
+        }
+        if (trimmed.startsWith('### ')) {
+          return (
+            <h4 key={`h3-${index}`} className="text-base font-semibold text-text">
+              {trimmed.slice(4)}
+            </h4>
+          )
+        }
+        if (trimmed.startsWith('## ')) {
+          return (
+            <h3 key={`h2-${index}`} className="text-[1.2rem] font-semibold text-text">
+              {trimmed.slice(3)}
+            </h3>
+          )
+        }
+        if (trimmed.startsWith('# ')) {
+          return (
+            <h2 key={`h1-${index}`} className="editorial-heading text-[1.8rem] font-semibold text-text">
+              {trimmed.slice(2)}
+            </h2>
+          )
+        }
+        if (trimmed.startsWith('- ')) {
+          return (
+            <p key={`li-${index}`} className="pl-4 text-sm leading-7 text-text">
+              • {trimmed.slice(2)}
+            </p>
+          )
+        }
+        return (
+          <p key={`p-${index}`} className="text-sm leading-7 text-muted">
+            {trimmed}
+          </p>
+        )
+      })}
+    </div>
+  )
 }
 
 function readVerifiedGumroadProducts(): string[] {
@@ -199,10 +288,14 @@ export default function Routes() {
   const [newPromptRefining, setNewPromptRefining] = useState(false)
   const [groqKeyConfigured, setGroqKeyConfigured] = useState(false)
   const [adminProfile, setAdminProfile] = useState<AdminProfileDTO | null>(null)
+  const [updateCenterOpen, setUpdateCenterOpen] = useState(false)
+  const [updateCenterLoading, setUpdateCenterLoading] = useState(false)
+  const [updateState, setUpdateState] = useState<UpdateCheckState | null>(null)
 
   const toastTimersRef = useRef<Map<number, number>>(new Map())
   const sessionExpiryTimerRef = useRef<number | null>(null)
   const toastCounterRef = useRef(1)
+  const updateToastIdRef = useRef<number | null>(null)
   const confirmResolverRef = useRef<((value: boolean) => void) | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean
@@ -281,34 +374,267 @@ export default function Routes() {
     }
   }, [])
 
-  const flashToast = useCallback((message: string, tone: AppToast['tone'] = 'info') => {
-    const id = toastCounterRef.current++
-    setToasts((prev) => [...prev, { id, message, tone }].slice(-4))
-    const timer = window.setTimeout(() => {
-      setToasts((prev) => prev.filter((toast) => toast.id !== id))
-      toastTimersRef.current.delete(id)
-    }, 8000)
-    toastTimersRef.current.set(id, timer)
+  const upsertToast = useCallback((toast: AppToast) => {
+    setToasts((prev) => {
+      const index = prev.findIndex((entry) => entry.id === toast.id)
+      if (index >= 0) {
+        const next = [...prev]
+        next[index] = toast
+        return next
+      }
+      return [...prev, toast].slice(-4)
+    })
   }, [])
 
-  const handleCheckForUpdates = useCallback(async () => {
+  const flashToast = useCallback((
+    message: string,
+    tone: AppToast['tone'] = 'info',
+    options?: {
+      title?: string
+      persistent?: boolean
+      progress?: number
+      actions?: AppToastAction[]
+      durationMs?: number
+    }
+  ) => {
+    const id = toastCounterRef.current++
+    const toast: AppToast = {
+      id,
+      title: options?.title,
+      message,
+      tone,
+      persistent: options?.persistent,
+      progress: options?.progress,
+      actions: options?.actions
+    }
+    upsertToast(toast)
+    if (options?.persistent) {
+      return id
+    }
+    const timer = window.setTimeout(() => {
+      setToasts((prev) => prev.filter((entry) => entry.id !== id))
+      toastTimersRef.current.delete(id)
+    }, options?.durationMs ?? 8000)
+    toastTimersRef.current.set(id, timer)
+    return id
+  }, [upsertToast])
+
+  const clearUpdateToast = useCallback(() => {
+    if (updateToastIdRef.current !== null) {
+      removeToast(updateToastIdRef.current)
+      updateToastIdRef.current = null
+    }
+  }, [removeToast])
+
+  const runUpdateCheck = useCallback(async (openOverlay: boolean) => {
     if (!api.app?.checkForUpdates) {
       flashToast(`AMP ${appVersion} is up to date.`)
-      return
+      return null
     }
-    const result = await api.app.checkForUpdates()
-    if (!result.ok) {
-      flashToast(result.reason ?? 'Update check failed.', 'warning')
-      return
+    if (openOverlay) {
+      setUpdateCenterOpen(true)
     }
-    if (result.updateAvailable) {
-      flashToast(`AMP ${result.latestVersion ?? 'update'} is available. Open the releases page to download it.`, 'success')
-      return
-    }
-    if (!result.updateAvailable) {
-      flashToast(`AMP ${result.currentVersion} is up to date.`)
+    setUpdateCenterLoading(true)
+    try {
+      const result = await api.app.checkForUpdates()
+      setUpdateState(result)
+      if (!result.ok) {
+        flashToast(result.reason ?? 'Update check failed.', 'warning')
+        return null
+      }
+      if (!result.updateAvailable && !openOverlay) {
+        flashToast(`AMP ${result.currentVersion} is up to date.`)
+      }
+      return result
+    } finally {
+      setUpdateCenterLoading(false)
     }
   }, [api.app, appVersion, flashToast])
+
+  const scheduleUpdateForNextLaunch = useCallback(async () => {
+    if (!api.app?.scheduleUpdate) {
+      flashToast('Update scheduling is not available in this build.', 'warning')
+      return
+    }
+    const result = await api.app.scheduleUpdate('next_launch')
+    if (!result.ok) {
+      flashToast(result.reason ?? 'Could not schedule update for next launch.', 'warning')
+      return
+    }
+    clearUpdateToast()
+    flashToast('Update scheduled for next launch.', 'success')
+  }, [api.app, clearUpdateToast, flashToast])
+
+  const downloadUpdate = useCallback(async (timing: 'install_now' | 'app_close') => {
+    if (!api.app?.downloadUpdate) {
+      flashToast('Installer download is not available in this build.', 'warning')
+      return
+    }
+    const result = await api.app.downloadUpdate(timing)
+    if (!result.ok) {
+      flashToast(result.reason ?? 'Unable to start update download.', 'warning')
+      return
+    }
+  }, [api.app, flashToast])
+
+  const showUpdateActionsToast = useCallback(
+    (event: {
+      latestVersion?: string
+      currentVersion?: string
+      releaseUrl?: string
+      publishedAt?: string
+      updatesMarkdown?: string
+      updatesSourceUrl?: string
+    }) => {
+      const toastId = updateToastIdRef.current ?? toastCounterRef.current++
+      updateToastIdRef.current = toastId
+      const actions: AppToastAction[] = [
+        {
+          id: 'update-now',
+          label: 'Update now',
+          tone: 'primary',
+          onClick: () => {
+            void downloadUpdate('install_now')
+          }
+        },
+        {
+          id: 'update-next-launch',
+          label: 'Next launch auto',
+          onClick: () => {
+            void scheduleUpdateForNextLaunch()
+          }
+        },
+        {
+          id: 'update-on-close',
+          label: 'When app closes',
+          onClick: () => {
+            void downloadUpdate('app_close')
+          }
+        },
+        {
+          id: 'update-view',
+          label: 'View changes',
+          onClick: () => {
+            setUpdateCenterOpen(true)
+          }
+        }
+      ]
+
+      const published = formatUpdateDate(event.publishedAt)
+      upsertToast({
+        id: toastId,
+        title: `Update ${event.latestVersion ?? 'available'}`,
+        message: published
+          ? `Current ${event.currentVersion ?? appVersion} • Published ${published}`
+          : `Current ${event.currentVersion ?? appVersion}`,
+        tone: 'success',
+        persistent: true,
+        actions
+      })
+
+      setUpdateState((prev) => ({
+        ok: true,
+        updateAvailable: true,
+        currentVersion: event.currentVersion ?? prev?.currentVersion ?? appVersion,
+        latestVersion: event.latestVersion ?? prev?.latestVersion,
+        releaseUrl: event.releaseUrl ?? prev?.releaseUrl,
+        publishedAt: event.publishedAt ?? prev?.publishedAt,
+        updatesMarkdown: event.updatesMarkdown ?? prev?.updatesMarkdown,
+        updatesSourceUrl: event.updatesSourceUrl ?? prev?.updatesSourceUrl,
+        packaged: prev?.packaged ?? Boolean(api.app)
+      }))
+    },
+    [api.app, appVersion, downloadUpdate, scheduleUpdateForNextLaunch, upsertToast]
+  )
+
+  const handleCheckForUpdates = useCallback(async () => {
+    const result = await runUpdateCheck(true)
+    if (!result?.ok || !result.updateAvailable) {
+      return
+    }
+    showUpdateActionsToast(result)
+  }, [runUpdateCheck, showUpdateActionsToast])
+
+  useEffect(() => {
+    if (!api.app?.onUpdateEvent) {
+      return undefined
+    }
+
+    return api.app.onUpdateEvent((event: UpdateEvent) => {
+      if (event.type === 'available') {
+        showUpdateActionsToast(event)
+        return
+      }
+      if (event.type === 'download-started') {
+        const toastId = updateToastIdRef.current ?? toastCounterRef.current++
+        updateToastIdRef.current = toastId
+        upsertToast({
+          id: toastId,
+          title: 'Downloading update',
+          message:
+            event.installTiming === 'install_now'
+              ? 'AMP will restart as soon as download finishes.'
+              : 'Update will install automatically when AMP closes.',
+          tone: 'warning',
+          persistent: true,
+          progress: 0
+        })
+        return
+      }
+      if (event.type === 'download-progress') {
+        const toastId = updateToastIdRef.current ?? toastCounterRef.current++
+        updateToastIdRef.current = toastId
+        upsertToast({
+          id: toastId,
+          title: 'Downloading update',
+          message: 'Preparing update package...',
+          tone: 'warning',
+          persistent: true,
+          progress: event.percent ?? 0
+        })
+        return
+      }
+      if (event.type === 'downloaded') {
+        const toastId = updateToastIdRef.current ?? toastCounterRef.current++
+        updateToastIdRef.current = toastId
+        upsertToast({
+          id: toastId,
+          title: 'Ready to install',
+          message:
+            event.installTiming === 'install_now'
+              ? 'Finalizing installation now.'
+              : 'Update is ready. It will install when you close AMP.',
+          tone: 'success',
+          persistent: true,
+          progress: 100,
+          actions: [
+            {
+              id: 'downloaded-release',
+              label: 'View release',
+              onClick: () => {
+                void api.app?.openReleasePage?.()
+              }
+            },
+            {
+              id: 'downloaded-close',
+              label: 'Dismiss',
+              onClick: () => {
+                clearUpdateToast()
+              }
+            }
+          ]
+        })
+        return
+      }
+      if (event.type === 'scheduled') {
+        flashToast('Update is scheduled for next launch.', 'success')
+        return
+      }
+      if (event.type === 'error') {
+        flashToast(event.message ?? 'Update flow failed.', 'danger')
+      }
+    })
+  }, [api.app, clearUpdateToast, flashToast, showUpdateActionsToast, upsertToast])
 
   useEffect(() => {
     return () => {
@@ -436,7 +762,6 @@ export default function Routes() {
     setMarketplaceState(marketplace)
 
     const rows = await api.prompt.list(profile.id, {
-      tag: activeTag ?? undefined,
       limit: 200,
       offset: 0
     })
@@ -451,7 +776,7 @@ export default function Routes() {
     if (!hasSelected) {
       setSelectedPromptId(rows[0].id)
     }
-  }, [activeTag, api.marketplace, api.prompt, api.tag, api.template, profile, selectedPromptId])
+  }, [api.marketplace, api.prompt, api.tag, api.template, profile, selectedPromptId])
 
   const handleMarketplaceInstalledEvent = useCallback(
     (event: MarketplaceDeepLinkInstalledEvent) => {
@@ -1415,6 +1740,7 @@ export default function Routes() {
         marketplaceLoadKey={marketplaceLoadKey}
         marketplaceStatus={marketplaceStatus}
         marketplaceFilters={marketplaceFilters}
+        defaultPromptView={appearance.defaultPromptView}
         settingsView={settingsPage}
         legalView={legalView}
         onSelectPromptId={setSelectedPromptId}
@@ -1566,6 +1892,89 @@ export default function Routes() {
               {gumroadVerifying ? 'Verifying...' : 'Verify and install'}
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={updateCenterOpen}
+        title="Updates"
+        widthClass="max-w-4xl"
+        onClose={() => setUpdateCenterOpen(false)}
+      >
+        <div className="space-y-4">
+          <div className="rounded-md border border-line/20 bg-surface2 p-3">
+            <p className="text-sm font-semibold text-text">Installed version: {appVersion}</p>
+            <p className="mt-1 text-xs text-muted">
+              {updateState?.latestVersion
+                ? `Latest release: ${updateState.latestVersion}${updateState.publishedAt ? ` • ${formatUpdateDate(updateState.publishedAt)}` : ''}`
+                : 'Latest release: checking...'}
+            </p>
+            {!updateState?.ok && updateState?.reason ? (
+              <p className="mt-2 text-xs text-danger">{updateState.reason}</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void runUpdateCheck(false)
+              }}
+              disabled={updateCenterLoading}
+            >
+              {updateCenterLoading ? 'Checking...' : 'Check again'}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                void downloadUpdate('install_now')
+              }}
+              disabled={!updateState?.updateAvailable}
+            >
+              Update now
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void downloadUpdate('app_close')
+              }}
+              disabled={!updateState?.updateAvailable}
+            >
+              Install on close
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void scheduleUpdateForNextLaunch()
+              }}
+            >
+              Auto next launch
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                void api.app?.openReleasePage?.()
+              }}
+            >
+              Open release page
+            </Button>
+          </div>
+
+          <div className="max-h-[52vh] overflow-y-auto rounded-md border border-line/20 bg-surface p-4">
+            {updateState?.updatesMarkdown?.trim()
+              ? renderUpdateNotes(updateState.updatesMarkdown)
+              : (
+                <p className="text-sm text-muted">
+                  No `updates.md` notes found in the repository yet.
+                </p>
+                )}
+          </div>
+
+          {updateState?.updatesSourceUrl ? (
+            <p className="text-xs text-muted">
+              Notes source: {updateState.updatesSourceUrl}
+            </p>
+          ) : null}
         </div>
       </Modal>
 

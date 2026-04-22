@@ -17,6 +17,7 @@ import type {
   PromptDTO,
   PromptListFilters,
   PromptVersionDTO,
+  PromptDefaultView,
   RefinementRequest,
   RefinementResult,
   SelectedExportBundle,
@@ -57,7 +58,8 @@ const SESSION_TTL_MS = 48 * 60 * 60 * 1000
 const DEFAULT_APPEARANCE: AppearanceSettingsDTO = {
   fontFamily: 'merriweather',
   fontScale: 100,
-  themePreset: 'midnight'
+  themePreset: 'midnight',
+  defaultPromptView: 'read'
 }
 
 const DEFAULT_ADMIN_PROFILE: AdminProfileDTO = {
@@ -130,6 +132,13 @@ function normalizeThemePreset(value: unknown): ThemePresetOption {
   return DEFAULT_APPEARANCE.themePreset
 }
 
+function normalizePromptDefaultView(value: unknown): PromptDefaultView {
+  if (value === 'summary' || value === 'read' || value === 'edit') {
+    return value
+  }
+  return DEFAULT_APPEARANCE.defaultPromptView
+}
+
 function normalizeAppearance(value: unknown): AppearanceSettingsDTO {
   if (!value || typeof value !== 'object') {
     return { ...DEFAULT_APPEARANCE }
@@ -144,7 +153,8 @@ function normalizeAppearance(value: unknown): AppearanceSettingsDTO {
   return {
     fontFamily: normalizeFontFamily(record.fontFamily),
     fontScale,
-    themePreset: normalizeThemePreset(record.themePreset)
+    themePreset: normalizeThemePreset(record.themePreset),
+    defaultPromptView: normalizePromptDefaultView(record.defaultPromptView)
   }
 }
 
@@ -797,8 +807,19 @@ export function createBrowserApiClient(): ApiClient {
         ok: true,
         updateAvailable: false,
         currentVersion: '0.1.1',
-        reason: 'Desktop update checks run in the packaged Electron app.'
-      })
+        reason: 'Desktop update checks run in the packaged Electron app.',
+        packaged: false
+      }),
+      downloadUpdate: async () => ({
+        ok: false,
+        reason: 'Update install is available in packaged desktop builds only.'
+      }),
+      scheduleUpdate: async () => ({
+        ok: false,
+        reason: 'Update scheduling is available in packaged desktop builds only.'
+      }),
+      openReleasePage: async () => ({ ok: true }),
+      onUpdateEvent: () => () => undefined
     },
     window: {
       minimize: async () => undefined,
