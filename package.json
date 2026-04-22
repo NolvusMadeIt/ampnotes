@@ -1,6 +1,6 @@
 {
   "name": "ampnotes",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "AMP, All My Prompts: a desktop-first prompt notebook for writing, validating, sharing, and extending prompts.",
   "main": "out/main/index.js",
   "author": "NolvusMadeIt",

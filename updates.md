@@ -1,5 +1,12 @@
 # AMP Updates
 
+## 2026-04-22 11:05 ET - v0.1.5
+- Image embeds now render only in Read mode (not in Summary mode).
+- Added a Gmail-style quick action toolbar to the prompt list column.
+- Marketplace/settings form dropdowns are now more spacious for easier scanning.
+- Renamed Workspace link to Home in app navigation.
+- App links are now shown at the top of the side rail when opening Settings.
+
 ## 2026-04-22 16:25 ET - v0.1.4
 - Added General > Display setting for default prompt open tab (Summary, Read, or Edit).
 - Prompt open behavior now respects your default tab when opening from lane cards/context actions.

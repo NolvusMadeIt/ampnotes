@@ -60,7 +60,7 @@ const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
 }
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
-const DEFAULT_APP_VERSION = '0.1.4'
+const DEFAULT_APP_VERSION = '0.1.5'
 const VERIFIED_GUMROAD_LICENSES_STORAGE_KEY = 'ampnotes.gumroad.verified-products.v1'
 
 interface PaidMarketplaceInstallRequest {

@@ -164,7 +164,7 @@ function markdownExcerpt(text: string, maxLength: number): string {
   return `${cleaned.slice(0, maxLength).trim()}...`
 }
 
-function renderInlineMarkdown(text: string): ReactNode[] {
+function renderInlineMarkdown(text: string, allowImages = true): ReactNode[] {
   const nodes: ReactNode[] = []
   const pattern = /(!?\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g
   let lastIndex = 0
@@ -179,7 +179,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
     const linkMatch = /^(!?)\[([^\]]+)\]\(([^)]+)\)$/.exec(token)
     if (linkMatch) {
       const [, imageBang, label, url] = linkMatch
-      if (imageBang) {
+      if (imageBang && allowImages) {
         nodes.push(
           <img
             key={`inline-image-${match.index}`}
@@ -223,7 +223,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
   return nodes
 }
 
-function MarkdownContent({ content, compact = false }: { content: string; compact?: boolean }) {
+function MarkdownContent({ content, compact = false, allowImages = true }: { content: string; compact?: boolean; allowImages?: boolean }) {
   const lines = content.replace(/\r\n/g, '\n').split('\n')
   const blocks: ReactNode[] = []
   let paragraph: string[] = []
@@ -240,7 +240,7 @@ function MarkdownContent({ content, compact = false }: { content: string; compac
     if (text) {
       blocks.push(
         <p key={`p-${blocks.length}`} className={compact ? 'text-sm leading-7 text-text' : 'text-[1rem] leading-8 text-text'}>
-          {renderInlineMarkdown(text)}
+          {renderInlineMarkdown(text, allowImages)}
         </p>
       )
     }
@@ -252,7 +252,7 @@ function MarkdownContent({ content, compact = false }: { content: string; compac
       blocks.push(
         <ul key={`ul-${blocks.length}`} className="list-disc space-y-1 pl-5 text-sm leading-7 text-text">
           {list.map((item, index) => (
-            <li key={`${item}-${index}`}>{renderInlineMarkdown(item)}</li>
+            <li key={`${item}-${index}`}>{renderInlineMarkdown(item, allowImages)}</li>
           ))}
         </ul>
       )
@@ -262,7 +262,7 @@ function MarkdownContent({ content, compact = false }: { content: string; compac
       blocks.push(
         <ol key={`ol-${blocks.length}`} className="list-decimal space-y-1 pl-5 text-sm leading-7 text-text">
           {orderedList.map((item, index) => (
-            <li key={`${item}-${index}`}>{renderInlineMarkdown(item)}</li>
+            <li key={`${item}-${index}`}>{renderInlineMarkdown(item, allowImages)}</li>
           ))}
         </ol>
       )
@@ -306,7 +306,7 @@ function MarkdownContent({ content, compact = false }: { content: string; compac
     }
 
     const imageOnlyMatch = /^!\[([^\]]+)\]\(([^)]+)\)$/.exec(trimmed)
-    if (imageOnlyMatch) {
+    if (imageOnlyMatch && allowImages) {
       flushParagraph()
       flushList()
       blocks.push(
@@ -333,7 +333,7 @@ function MarkdownContent({ content, compact = false }: { content: string; compac
             : 'text-base font-semibold text-text'
       blocks.push(
         <h4 key={`heading-${blocks.length}`} className={className}>
-          {renderInlineMarkdown(headingMatch[2])}
+          {renderInlineMarkdown(headingMatch[2], allowImages)}
         </h4>
       )
       continue
@@ -361,7 +361,7 @@ function MarkdownContent({ content, compact = false }: { content: string; compac
       flushList()
       blocks.push(
         <blockquote key={`quote-${blocks.length}`} className="border-l-2 border-accent/60 pl-3 text-sm leading-7 text-muted">
-          {renderInlineMarkdown(quoteMatch[1])}
+          {renderInlineMarkdown(quoteMatch[1], allowImages)}
         </blockquote>
       )
       continue
@@ -906,7 +906,7 @@ export function NeoApp({
           {page !== 'workspace' ? (
             <button type="button" className={navRowClass(false)} onClick={openAllPromptsHome}>
               <FolderOpen size={14} />
-              <span className="truncate">Workspace</span>
+              <span className="truncate">Home</span>
             </button>
           ) : null}
         <button type="button" className={navRowClass(false)} onClick={onOpenShareImport}>
@@ -1159,8 +1159,9 @@ export function NeoApp({
                   : 'Reference pages live inside the same AMP workspace chrome.'}
               </p>
             </div>
+            {settingsOpen ? sideActions : null}
             <div className="min-h-0 flex-1 overflow-hidden" />
-            {sideActions}
+            {settingsOpen ? null : sideActions}
           </aside>
 
           <section className="neo-panel min-h-0 overflow-hidden border border-line/20 bg-surface">
@@ -1499,6 +1500,126 @@ export function NeoApp({
                 placeholder="Search in this lane..."
                 className="h-9 w-full border-none bg-transparent px-1 text-sm outline-none"
               />
+            </div>
+            <div className="mt-2 flex items-center gap-1 rounded-md border border-line/20 bg-surface2 px-1 py-1">
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Open Read"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  onSelectPromptId(selectedPrompt.id)
+                  setFocus('read')
+                }}
+              >
+                <Maximize2 size={14} />
+              </button>
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Open Edit"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  onSelectPromptId(selectedPrompt.id)
+                  setFocus('edit')
+                }}
+              >
+                <PencilLine size={14} />
+              </button>
+              <div className="h-5 w-px bg-line/30" />
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Toggle Favorite"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  void onSavePrompt(selectedPrompt, {
+                    title: selectedPrompt.title,
+                    content: selectedPrompt.content,
+                    category: selectedPrompt.category,
+                    tags: selectedPrompt.tags,
+                    folder: selectedPrompt.folder ?? undefined,
+                    useCase: selectedPrompt.useCase,
+                    aiTarget: selectedPrompt.aiTarget,
+                    favorite: !selectedPrompt.favorite
+                  })
+                }}
+              >
+                <Heart size={14} />
+              </button>
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Toggle Pin"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  void onSavePrompt(selectedPrompt, {
+                    title: selectedPrompt.title,
+                    content: selectedPrompt.content,
+                    category: selectedPrompt.category,
+                    tags: selectedPrompt.tags,
+                    folder: selectedPrompt.folder ?? undefined,
+                    useCase: selectedPrompt.useCase,
+                    aiTarget: selectedPrompt.aiTarget,
+                    pinned: !selectedPrompt.pinned
+                  })
+                }}
+              >
+                <Pin size={14} />
+              </button>
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Copy"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  void onCopyPrompt(selectedPrompt)
+                }}
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Share"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  onSharePrompt(selectedPrompt)
+                }}
+              >
+                <Share2 size={14} />
+              </button>
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={!selectedPrompt || validatingPromptId === selectedPrompt.id}
+                title="Validate"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  void onValidatePrompt(selectedPrompt)
+                }}
+              >
+                <ShieldCheck size={14} />
+              </button>
+              <div className="h-5 w-px bg-line/30" />
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-md text-danger transition-colors hover:bg-danger/15 disabled:opacity-40"
+                disabled={!selectedPrompt}
+                title="Delete"
+                onClick={() => {
+                  if (!selectedPrompt) return
+                  void onDeletePrompt(selectedPrompt)
+                }}
+              >
+                <Trash2 size={14} />
+              </button>
             </div>
             <div className="mt-2 flex items-center justify-between text-xs text-muted">
               <span>{lane === 'templates' ? `${templates.length} templates` : `${lanePrompts.length} prompts`}</span>
@@ -2083,7 +2204,7 @@ function NeoFocusPanel({
             </div>
             <div>
               <p className="mono-meta text-[10px] uppercase tracking-[0.2em] text-muted">Prompt</p>
-              <MarkdownContent content={markdownExcerpt(prompt.content, 900)} compact />
+              <MarkdownContent content={markdownExcerpt(prompt.content, 900)} compact allowImages={false} />
             </div>
           </article>
         )}

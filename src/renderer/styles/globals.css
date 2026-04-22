@@ -70,6 +70,11 @@ select {
   font: inherit;
 }
 
+select {
+  min-height: calc(var(--control-height-md) + 0.3rem);
+  padding-inline: calc(var(--control-padding-x) + 0.2rem);
+}
+
 *:focus-visible {
   outline: var(--focus-outline-width) solid color-mix(in srgb, var(--ring) 55%, transparent);
   outline-offset: 1px;
