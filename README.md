@@ -47,7 +47,7 @@ AMP is a desktop-first prompt operations app for writing, validating, organizing
 The Windows app is distributed as an NSIS installer from GitHub Releases.
 
 - Installer artifact: `AMP-Setup-<version>.exe`
-- Current app version: `0.1.2`
+- Current app version: `0.1.3`
 - Release feed: `https://github.com/NolvusMadeIt/ampnotes/releases`
 
 AMP checks for new GitHub releases when the packaged desktop app starts. Users can also run **Check updates** from the top navigation. If a new release exists, AMP prompts before opening/downloading the update.
