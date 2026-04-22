@@ -12,7 +12,7 @@ export function createSharePackage(prompt: PromptDTO, credits?: ExportCredits): 
     createdAt: new Date().toISOString(),
     source: {
       app: 'ampnotes' as const,
-      version: '0.1.2'
+      version: '0.1.3'
     },
     credits,
     prompt: {

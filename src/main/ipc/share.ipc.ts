@@ -117,7 +117,7 @@ export function registerShareIpc(context: IpcContext): void {
       createdAt: new Date().toISOString(),
       source: {
         app: 'ampnotes',
-        version: '0.1.2'
+        version: '0.1.3'
       },
       credits: resolveCredits(request.profileId),
       prompts: prompts.map((prompt) => createSharePackage(prompt, resolveCredits(prompt.profileId))),
