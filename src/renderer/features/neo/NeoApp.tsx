@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type DragEvent,
+  type ReactNode
+} from 'react'
 import ampLogoUrl from '@renderer/assets/imgs/amp_logo.png'
 import {
   ArrowUpRight,
@@ -79,6 +89,7 @@ interface NeoAppProps {
   onCheckForUpdates: () => void
   onCopyPrompt: (prompt: PromptDTO) => Promise<void>
   onSavePrompt: (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => Promise<void>
+  onSavePromptImage: (promptId: string, file: File) => Promise<string>
   onDeletePrompt: (prompt: PromptDTO) => Promise<void>
   onRefinePrompt: (prompt: PromptDTO) => void
   onValidatePrompt: (prompt: PromptDTO) => Promise<void>
@@ -138,6 +149,249 @@ function excerpt(text: string, maxLength: number): string {
   return `${cleaned.slice(0, maxLength).trim()}...`
 }
 
+function markdownExcerpt(text: string, maxLength: number): string {
+  const cleaned = text.trim()
+  if (cleaned.length <= maxLength) {
+    return cleaned
+  }
+  return `${cleaned.slice(0, maxLength).trim()}...`
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const nodes: ReactNode[] = []
+  const pattern = /(!?\[[^\]]+\]\([^)]+\)|`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = pattern.exec(text))) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index))
+    }
+
+    const token = match[0]
+    const linkMatch = /^(!?)\[([^\]]+)\]\(([^)]+)\)$/.exec(token)
+    if (linkMatch) {
+      const [, imageBang, label, url] = linkMatch
+      if (imageBang) {
+        nodes.push(
+          <img
+            key={`inline-image-${match.index}`}
+            src={url}
+            alt={label}
+            className="my-3 max-h-[420px] max-w-full rounded-md border border-line/20 object-contain"
+          />
+        )
+      } else {
+        nodes.push(
+          <a
+            key={`inline-link-${match.index}`}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent underline-offset-4 hover:underline"
+          >
+            {label}
+          </a>
+        )
+      }
+    } else if (token.startsWith('`')) {
+      nodes.push(
+        <code key={`inline-code-${match.index}`} className="rounded-sm bg-surface px-1 py-0.5 font-mono text-[0.92em]">
+          {token.slice(1, -1)}
+        </code>
+      )
+    } else if (token.startsWith('**')) {
+      nodes.push(<strong key={`inline-strong-${match.index}`}>{token.slice(2, -2)}</strong>)
+    } else {
+      nodes.push(<em key={`inline-em-${match.index}`}>{token.slice(1, -1)}</em>)
+    }
+
+    lastIndex = match.index + token.length
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex))
+  }
+
+  return nodes
+}
+
+function MarkdownContent({ content, compact = false }: { content: string; compact?: boolean }) {
+  const lines = content.replace(/\r\n/g, '\n').split('\n')
+  const blocks: ReactNode[] = []
+  let paragraph: string[] = []
+  let list: string[] = []
+  let orderedList: string[] = []
+  let codeLines: string[] = []
+  let inCode = false
+
+  const flushParagraph = () => {
+    if (paragraph.length === 0) {
+      return
+    }
+    const text = paragraph.join(' ').trim()
+    if (text) {
+      blocks.push(
+        <p key={`p-${blocks.length}`} className={compact ? 'text-sm leading-7 text-text' : 'text-[1rem] leading-8 text-text'}>
+          {renderInlineMarkdown(text)}
+        </p>
+      )
+    }
+    paragraph = []
+  }
+
+  const flushList = () => {
+    if (list.length > 0) {
+      blocks.push(
+        <ul key={`ul-${blocks.length}`} className="list-disc space-y-1 pl-5 text-sm leading-7 text-text">
+          {list.map((item, index) => (
+            <li key={`${item}-${index}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ul>
+      )
+      list = []
+    }
+    if (orderedList.length > 0) {
+      blocks.push(
+        <ol key={`ol-${blocks.length}`} className="list-decimal space-y-1 pl-5 text-sm leading-7 text-text">
+          {orderedList.map((item, index) => (
+            <li key={`${item}-${index}`}>{renderInlineMarkdown(item)}</li>
+          ))}
+        </ol>
+      )
+      orderedList = []
+    }
+  }
+
+  const flushCode = () => {
+    if (codeLines.length === 0) {
+      return
+    }
+    blocks.push(
+      <pre key={`code-${blocks.length}`} className="overflow-x-auto rounded-md border border-line/20 bg-bg p-3 text-xs leading-6 text-text">
+        <code>{codeLines.join('\n')}</code>
+      </pre>
+    )
+    codeLines = []
+  }
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('```')) {
+      flushParagraph()
+      flushList()
+      if (inCode) {
+        flushCode()
+      }
+      inCode = !inCode
+      continue
+    }
+
+    if (inCode) {
+      codeLines.push(line)
+      continue
+    }
+
+    if (!trimmed) {
+      flushParagraph()
+      flushList()
+      continue
+    }
+
+    const imageOnlyMatch = /^!\[([^\]]+)\]\(([^)]+)\)$/.exec(trimmed)
+    if (imageOnlyMatch) {
+      flushParagraph()
+      flushList()
+      blocks.push(
+        <img
+          key={`image-${blocks.length}`}
+          src={imageOnlyMatch[2]}
+          alt={imageOnlyMatch[1]}
+          className="max-h-[520px] max-w-full rounded-md border border-line/20 object-contain"
+        />
+      )
+      continue
+    }
+
+    const headingMatch = /^(#{1,4})\s+(.+)$/.exec(trimmed)
+    if (headingMatch) {
+      flushParagraph()
+      flushList()
+      const level = headingMatch[1].length
+      const className =
+        level === 1
+          ? 'editorial-heading text-3xl font-semibold text-text'
+          : level === 2
+            ? 'editorial-heading text-2xl font-semibold text-text'
+            : 'text-base font-semibold text-text'
+      blocks.push(
+        <h4 key={`heading-${blocks.length}`} className={className}>
+          {renderInlineMarkdown(headingMatch[2])}
+        </h4>
+      )
+      continue
+    }
+
+    const unorderedMatch = /^[-*]\s*(.+)$/.exec(trimmed)
+    if (unorderedMatch) {
+      flushParagraph()
+      orderedList = []
+      list.push(unorderedMatch[1])
+      continue
+    }
+
+    const orderedMatch = /^\d+\.\s+(.+)$/.exec(trimmed)
+    if (orderedMatch) {
+      flushParagraph()
+      list = []
+      orderedList.push(orderedMatch[1])
+      continue
+    }
+
+    const quoteMatch = /^>\s?(.+)$/.exec(trimmed)
+    if (quoteMatch) {
+      flushParagraph()
+      flushList()
+      blocks.push(
+        <blockquote key={`quote-${blocks.length}`} className="border-l-2 border-accent/60 pl-3 text-sm leading-7 text-muted">
+          {renderInlineMarkdown(quoteMatch[1])}
+        </blockquote>
+      )
+      continue
+    }
+
+    paragraph.push(trimmed)
+  }
+
+  flushParagraph()
+  flushList()
+  flushCode()
+
+  return <div className={compact ? 'space-y-3' : 'space-y-5'}>{blocks}</div>
+}
+
+function PromptTagPreview({ tags }: { tags: string[] }) {
+  if (tags.length === 0) {
+    return <span className="text-muted">No tags</span>
+  }
+  const visibleTags = tags.slice(0, 4)
+  const hiddenCount = Math.max(0, tags.length - visibleTags.length)
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      {visibleTags.map((tag) => (
+        <span key={tag} className="rounded-md border border-line/20 bg-surface px-1.5 py-0.5 text-[11px] text-muted">
+          #{tag}
+        </span>
+      ))}
+      {hiddenCount > 0 && (
+        <span className="rounded-md border border-line/20 bg-surface px-1.5 py-0.5 text-[11px] text-muted">
+          +{hiddenCount}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function normalizeProvider(prompt: PromptDTO): string {
   if (!prompt.validationProvider) {
     return 'Groq'
@@ -195,6 +449,7 @@ function writeLocalStorage(key: string, value: string): void {
 
 export function NeoApp({
   profileId,
+  profileName,
   appVersion,
   prompts,
   templates,
@@ -226,6 +481,7 @@ export function NeoApp({
   onCheckForUpdates,
   onCopyPrompt,
   onSavePrompt,
+  onSavePromptImage,
   onDeletePrompt,
   onRefinePrompt,
   onValidatePrompt,
@@ -1320,12 +1576,14 @@ export function NeoApp({
             {selectedPrompt ? (
               <NeoFocusPanel
                 prompt={selectedPrompt}
+                profileName={profileName}
                 focus={focus}
                 setFocus={setFocus}
                 folders={folders}
                 isValidating={validatingPromptId === selectedPrompt.id}
                 onCopyPrompt={onCopyPrompt}
                 onSavePrompt={onSavePrompt}
+                onSavePromptImage={onSavePromptImage}
                 onDeletePrompt={onDeletePrompt}
                 onRefinePrompt={onRefinePrompt}
                 onValidatePrompt={onValidatePrompt}
@@ -1466,12 +1724,14 @@ export function NeoApp({
 
 interface NeoFocusPanelProps {
   prompt: PromptDTO
+  profileName: string
   focus: NeoFocus
   setFocus: (mode: NeoFocus) => void
   folders: string[]
   isValidating: boolean
   onCopyPrompt: (prompt: PromptDTO) => Promise<void>
   onSavePrompt: (prompt: PromptDTO, updates: Partial<PromptDTO> & { tags: string[] }) => Promise<void>
+  onSavePromptImage: (promptId: string, file: File) => Promise<string>
   onDeletePrompt: (prompt: PromptDTO) => Promise<void>
   onRefinePrompt: (prompt: PromptDTO) => void
   onValidatePrompt: (prompt: PromptDTO) => Promise<void>
@@ -1481,12 +1741,14 @@ interface NeoFocusPanelProps {
 
 function NeoFocusPanel({
   prompt,
+  profileName,
   focus,
   setFocus,
   folders,
   isValidating,
   onCopyPrompt,
   onSavePrompt,
+  onSavePromptImage,
   onDeletePrompt,
   onRefinePrompt,
   onValidatePrompt,
@@ -1494,6 +1756,8 @@ function NeoFocusPanel({
   onAddAsTemplate
 }: NeoFocusPanelProps) {
   const [validationMessage, setValidationMessage] = useState<string | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
   const [form, setForm] = useState<NeoEditorState>({
     title: '',
     content: '',
@@ -1521,6 +1785,81 @@ function NeoFocusPanel({
   const providerFeedback = prompt.validationNotes
     ? prompt.validationNotes.replace(/^pass:\s*/i, '').replace(/^needs_work:\s*/i, '').trim()
     : null
+
+  function insertMarkdown(markdown: string): void {
+    const textarea = textareaRef.current
+    const current = form.content
+    const start = textarea?.selectionStart ?? current.length
+    const end = textarea?.selectionEnd ?? current.length
+    const before = current.slice(0, start)
+    const after = current.slice(end)
+    const prefix = before.endsWith('\n\n') || before.length === 0 ? '' : before.endsWith('\n') ? '\n' : '\n\n'
+    const suffix = after.startsWith('\n\n') || after.length === 0 ? '' : after.startsWith('\n') ? '\n' : '\n\n'
+    const inserted = `${prefix}${markdown}${suffix}`
+    const nextContent = `${before}${inserted}${after}`
+    setForm((prev) => ({ ...prev, content: nextContent }))
+    window.setTimeout(() => {
+      textarea?.focus()
+      const nextPosition = before.length + inserted.length
+      textarea?.setSelectionRange(nextPosition, nextPosition)
+    }, 0)
+  }
+
+  async function saveAndInsertImages(files: File[]): Promise<void> {
+    if (files.length === 0) {
+      return
+    }
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'))
+    if (imageFiles.length !== files.length) {
+      setValidationMessage('Only image files can be added to prompt markdown.')
+      if (imageFiles.length === 0) {
+        return
+      }
+    }
+
+    try {
+      const markdownLines: string[] = []
+      for (const file of imageFiles) {
+        markdownLines.push(await onSavePromptImage(prompt.id, file))
+      }
+      insertMarkdown(markdownLines.join('\n\n'))
+      setValidationMessage(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Image save failed.'
+      setValidationMessage(message)
+    }
+  }
+
+  function handleImageInput(event: ChangeEvent<HTMLInputElement>): void {
+    const files = Array.from(event.target.files ?? [])
+    event.target.value = ''
+    void saveAndInsertImages(files)
+  }
+
+  function handleMarkdownPaste(event: ClipboardEvent<HTMLTextAreaElement>): void {
+    const files = Array.from(event.clipboardData.files)
+    if (files.length === 0) {
+      return
+    }
+    event.preventDefault()
+    void saveAndInsertImages(files)
+  }
+
+  function handleMarkdownDrop(event: DragEvent<HTMLTextAreaElement>): void {
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length === 0) {
+      return
+    }
+    event.preventDefault()
+    void saveAndInsertImages(files)
+  }
+
+  function handleMarkdownDragOver(event: DragEvent<HTMLTextAreaElement>): void {
+    const hasFile = Array.from(event.dataTransfer.items).some((item) => item.kind === 'file')
+    if (hasFile) {
+      event.preventDefault()
+    }
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -1555,6 +1894,26 @@ function NeoFocusPanel({
           </div>
         </div>
         <p className="text-xs text-muted">Added on {new Date(prompt.createdAt).toLocaleDateString()}</p>
+        {focus === 'read' && (
+          <div className="mt-2 grid gap-2 border-t border-line/10 pt-2 text-xs text-muted md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <p className="mono-meta text-[10px] uppercase tracking-[0.2em]">Use case</p>
+              <p className="text-text">{prompt.useCase || 'No use case yet.'}</p>
+            </div>
+            <div>
+              <p className="mono-meta text-[10px] uppercase tracking-[0.2em]">Target models</p>
+              <p className="text-text">{prompt.aiTarget || 'No target models yet.'}</p>
+            </div>
+            <div>
+              <p className="mono-meta text-[10px] uppercase tracking-[0.2em]">Added by</p>
+              <p className="text-text">{profileName}</p>
+            </div>
+            <div>
+              <p className="mono-meta text-[10px] uppercase tracking-[0.2em]">Tags</p>
+              <PromptTagPreview tags={prompt.tags} />
+            </div>
+          </div>
+        )}
         {prompt.validatedAt && (
           <p className="inline-flex items-center gap-1 text-xs text-muted">
             {`Validated on ${new Date(prompt.validatedAt).toLocaleDateString()} by ${providerLabel}`}
@@ -1585,14 +1944,14 @@ function NeoFocusPanel({
             </div>
             <div>
               <p className="mono-meta text-[10px] uppercase tracking-[0.2em] text-muted">Prompt</p>
-              <p className="whitespace-pre-wrap text-sm leading-7 text-text">{excerpt(prompt.content, 900)}</p>
+              <MarkdownContent content={markdownExcerpt(prompt.content, 900)} compact />
             </div>
           </article>
         )}
 
         {focus === 'read' && (
           <article className="border border-line/20 bg-surface2 p-4">
-            <p className="whitespace-pre-wrap text-[1rem] leading-8 text-text">{prompt.content}</p>
+            <MarkdownContent content={prompt.content} />
           </article>
         )}
 
@@ -1686,17 +2045,38 @@ function NeoFocusPanel({
               </label>
             </div>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">
-                Prompt content (Markdown)
-                <HelpTooltip text="The actual prompt text. Include instructions, format guidance, constraints, and examples to get the best output." />
-              </span>
+            <div className="block text-sm">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-medium">
+                  Prompt content (Markdown)
+                  <HelpTooltip text="The actual prompt text. Include instructions, format guidance, constraints, and examples to get the best output." />
+                </span>
+                <div>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleImageInput}
+                  />
+                  <Button type="button" size="sm" variant="secondary" className="h-8 px-3" onClick={() => imageInputRef.current?.click()}>
+                    <FilePlus2 size={14} className="mr-2" />
+                    Add image
+                  </Button>
+                </div>
+              </div>
               <textarea
+                ref={textareaRef}
                 className="min-h-[320px] w-full border border-line/20 bg-surface2 px-3 py-3 leading-7 outline-none focus:border-accent/25"
                 value={form.content}
                 onChange={(event) => setForm((prev) => ({ ...prev, content: event.target.value }))}
+                onPaste={handleMarkdownPaste}
+                onDrop={handleMarkdownDrop}
+                onDragOver={handleMarkdownDragOver}
               />
-            </label>
+              <p className="mt-1 text-xs text-muted">Paste, upload, or drop images here. AMP stores them with this prompt.</p>
+            </div>
           </div>
         )}
       </div>

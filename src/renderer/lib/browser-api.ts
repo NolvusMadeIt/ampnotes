@@ -1155,7 +1155,26 @@ export function createBrowserApiClient(): ApiClient {
           prompt.validationNotes = 'pass: Prompt looks clear and reusable.'
           prompt.updatedAt = prompt.validatedAt
           return clone(prompt)
-        })
+        }),
+      saveImage: async (input: {
+        profileId: string
+        promptId: string
+        fileName: string
+        mimeType: string
+        dataUrl: string
+      }) => {
+        if (!input.mimeType.startsWith('image/')) {
+          throw new Error('Only image files can be added to prompt markdown.')
+        }
+        const safeName = input.fileName.replace(/[^a-z0-9._-]/gi, '_') || 'image'
+        const altText = safeName.replace(/\.[^.]+$/, '')
+        return {
+          ok: true,
+          markdown: `![${altText}](${input.dataUrl})`,
+          fileUrl: input.dataUrl,
+          filePath: `browser://${input.profileId}/${input.promptId}/${safeName}`
+        }
+      }
     },
     tag: {
       list: async (profileId: string) =>

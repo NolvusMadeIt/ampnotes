@@ -1,8 +1,19 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, protocol } from 'electron'
 import { bootstrapApp } from './app'
 import { enqueueProtocolUrl, findProtocolUrl } from './deepLink'
+import { PROMPT_IMAGE_PROTOCOL } from './promptImages'
 
 app.setAppUserModelId('com.ampnotes.desktop')
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: PROMPT_IMAGE_PROTOCOL,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true
+    }
+  }
+])
 
 function forceExit(code: number): void {
   try {

@@ -251,6 +251,13 @@ export interface PromptValidationResult {
   notes: string
 }
 
+export interface PromptImageSaveResult {
+  ok: boolean
+  markdown: string
+  fileUrl: string
+  filePath: string
+}
+
 export interface SharePackagePrompt {
   title: string
   content: string

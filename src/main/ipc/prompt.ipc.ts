@@ -1,4 +1,7 @@
-import { ipcMain } from 'electron'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
+import { app, ipcMain } from 'electron'
+import { createPromptImageUrl } from '@main/promptImages'
 import {
   createTemplateSchema,
   createPromptSchema,
@@ -23,6 +26,25 @@ const idSchema = {
 
     return { id: value.id, profileId: value.profileId }
   }
+}
+
+const imageMimeExtensions: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif'
+}
+
+function safePathSegment(value: string): string {
+  return value.replace(/[^a-z0-9._-]/gi, '_').slice(0, 80) || 'image'
+}
+
+function parseImageDataUrl(dataUrl: string, mimeType: string): Buffer {
+  const expectedPrefix = `data:${mimeType};base64,`
+  if (!dataUrl.startsWith(expectedPrefix)) {
+    throw new Error('Image payload is invalid.')
+  }
+  return Buffer.from(dataUrl.slice(expectedPrefix.length), 'base64')
 }
 
 export function registerPromptIpc(context: IpcContext): void {
@@ -137,6 +159,54 @@ export function registerPromptIpc(context: IpcContext): void {
     })
 
     return context.promptRepo.setPromptValidation(request.profileId, request.promptId, validation)
+  })
+
+  ipcMain.handle('prompt.saveImage', (_event, payload: unknown) => {
+    const request = payload as {
+      profileId?: string
+      promptId?: string
+      fileName?: string
+      mimeType?: string
+      dataUrl?: string
+    }
+
+    if (
+      typeof request.profileId !== 'string' ||
+      typeof request.promptId !== 'string' ||
+      typeof request.fileName !== 'string' ||
+      typeof request.mimeType !== 'string' ||
+      typeof request.dataUrl !== 'string'
+    ) {
+      throw new Error('Invalid image payload.')
+    }
+
+    const extension = imageMimeExtensions[request.mimeType]
+    if (!extension) {
+      throw new Error('Only PNG, JPEG, WebP, and GIF images are supported.')
+    }
+
+    const prompt = context.promptRepo.getPromptById(request.promptId)
+    if (!prompt || prompt.profileId !== request.profileId) {
+      throw new Error('Prompt not found.')
+    }
+
+    const bytes = parseImageDataUrl(request.dataUrl, request.mimeType)
+    const originalExt = extname(request.fileName).toLowerCase()
+    const fileExt = originalExt && Object.values(imageMimeExtensions).includes(originalExt) ? originalExt : extension
+    const baseName = safePathSegment(request.fileName.replace(/\.[^.]+$/, ''))
+    const fileName = `${Date.now()}-${baseName}${fileExt}`
+    const folderPath = join(app.getPath('userData'), 'prompt-images', safePathSegment(request.profileId), safePathSegment(request.promptId))
+    mkdirSync(folderPath, { recursive: true })
+    const filePath = join(folderPath, fileName)
+    writeFileSync(filePath, bytes)
+    const fileUrl = createPromptImageUrl(request.profileId, request.promptId, fileName)
+
+    return {
+      ok: true,
+      markdown: `![${baseName}](${fileUrl})`,
+      fileUrl,
+      filePath
+    }
   })
 
   ipcMain.handle('template.list', () => context.templateRepo.listTemplates())

@@ -141,6 +141,21 @@ function readMarketplaceBaseUrl(): string {
   }
 }
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Image read failed.'))
+      }
+    }
+    reader.onerror = () => reject(new Error('Image read failed.'))
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function Routes() {
   const api = useMemo(() => getApi(), [])
   const [appVersion, setAppVersion] = useState(DEFAULT_APP_VERSION)
@@ -835,6 +850,29 @@ export default function Routes() {
     [api.prompt, flashToast, profile, refreshWorkspace]
   )
 
+  const handleSavePromptImage = useCallback(
+    async (promptId: string, file: File) => {
+      if (!profile) {
+        throw new Error('Sign in before adding prompt images.')
+      }
+      if (!file.type.startsWith('image/')) {
+        throw new Error('Only image files can be added to prompt markdown.')
+      }
+
+      const dataUrl = await fileToDataUrl(file)
+      const result = await api.prompt.saveImage({
+        profileId: profile.id,
+        promptId,
+        fileName: file.name || 'pasted-image.png',
+        mimeType: file.type,
+        dataUrl
+      })
+      flashToast('Image added to prompt markdown', 'success')
+      return result.markdown
+    },
+    [api.prompt, flashToast, profile]
+  )
+
   const handleDeletePrompt = useCallback(
     async (prompt: PromptDTO) => {
       if (!profile) {
@@ -1407,6 +1445,7 @@ export default function Routes() {
         onCheckForUpdates={handleCheckForUpdates}
         onCopyPrompt={handleCopy}
         onSavePrompt={handleSavePrompt}
+        onSavePromptImage={handleSavePromptImage}
         onDeletePrompt={handleDeletePrompt}
         onRefinePrompt={handleOpenRefine}
         onValidatePrompt={handleValidatePrompt}

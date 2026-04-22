@@ -38,7 +38,8 @@ const api: ApiClient = {
     markUsed: (profileId, id) => invoke('prompt.markUsed', { profileId, id }),
     versions: (promptId) => invoke('prompt.versions', { promptId }),
     applyRefinement: (input) => invoke('prompt.applyRefinement', input),
-    validateWithGroq: (profileId, promptId) => invoke('prompt.validateWithGroq', { profileId, promptId })
+    validateWithGroq: (profileId, promptId) => invoke('prompt.validateWithGroq', { profileId, promptId }),
+    saveImage: (input) => invoke('prompt.saveImage', input)
   },
   tag: {
     list: (profileId) => invoke('tag.list', { profileId })

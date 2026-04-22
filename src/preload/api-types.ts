@@ -17,6 +17,7 @@ import type {
   MarketplaceStateDTO,
   ProfileDTO,
   PromptDTO,
+  PromptImageSaveResult,
   PromptListFilters,
   PromptVersionDTO,
   RefinementRequest,
@@ -78,6 +79,13 @@ export interface ApiClient {
       notes?: string
     }) => Promise<PromptDTO>
     validateWithGroq: (profileId: string, promptId: string) => Promise<PromptDTO>
+    saveImage: (input: {
+      profileId: string
+      promptId: string
+      fileName: string
+      mimeType: string
+      dataUrl: string
+    }) => Promise<PromptImageSaveResult>
   }
   tag: {
     list: (profileId: string) => Promise<Array<{ name: string; count: number }>>

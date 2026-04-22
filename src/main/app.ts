@@ -6,6 +6,7 @@ import { GroqProvider } from '@main/ai/providers/groq'
 import { registerIpcHandlers } from '@main/ipc'
 import { createMainWindow } from '@main/window'
 import { handleInstallDeepLink, setProtocolHandler } from '@main/deepLink'
+import { registerPromptImageProtocol } from '@main/promptImages'
 import { checkForUpdates, registerAppIpc } from '@main/updater'
 
 let initialized = false
@@ -24,6 +25,7 @@ export async function bootstrapApp(): Promise<void> {
   const providers = new AIProviderRegistry()
   providers.register(new GroqProvider())
 
+  registerPromptImageProtocol()
   registerAppIpc()
   registerIpcHandlers({
     db,
