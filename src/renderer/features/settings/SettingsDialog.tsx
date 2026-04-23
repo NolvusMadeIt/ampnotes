@@ -17,11 +17,12 @@ import { pluginManifestSchema, themeManifestSchema } from '@shared/contracts/ipc
 import { Button } from '@renderer/components/ui/Button'
 import { HelpTooltip } from '@renderer/components/ui/HelpTooltip'
 import { Modal } from '@renderer/components/ui/Modal'
+import { AboutPage } from '@renderer/features/legal/AboutPage'
 
 interface SettingsDialogProps {
   asPage?: boolean
   open?: boolean
-  section?: 'general' | 'plugins' | 'themes' | 'admin' | 'all'
+  section?: 'general' | 'plugins' | 'themes' | 'admin' | 'about' | 'all'
   currentTheme: ThemeMode
   appearance: AppearanceSettingsDTO
   marketplaceState: MarketplaceStateDTO
@@ -607,8 +608,8 @@ export function SettingsDialog({
   onVerifyAdminPin,
   onSignOut
 }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<'general' | 'plugins' | 'themes' | 'customizeThemes' | 'admin'>(
-    section === 'plugins' || section === 'themes' || section === 'admin' ? section : 'general'
+  const [activeSection, setActiveSection] = useState<'general' | 'plugins' | 'themes' | 'customizeThemes' | 'admin' | 'about'>(
+    section === 'plugins' || section === 'themes' || section === 'admin' || section === 'about' ? section : 'general'
   )
   const [apiKey, setApiKey] = useState('')
   const [fontScaleDraft, setFontScaleDraft] = useState(appearance.fontScale)
@@ -644,7 +645,9 @@ export function SettingsDialog({
     : `preset:${appearance.themePreset}`
 
   useEffect(() => {
-    setActiveSection(section === 'plugins' || section === 'themes' || section === 'admin' ? section : 'general')
+    setActiveSection(
+      section === 'plugins' || section === 'themes' || section === 'admin' || section === 'about' ? section : 'general'
+    )
   }, [section])
 
   useEffect(() => {
@@ -663,6 +666,7 @@ export function SettingsDialog({
   const showThemes = activeSection === 'themes'
   const showCustomizeThemes = activeSection === 'customizeThemes'
   const showAdmin = activeSection === 'admin'
+  const showAbout = activeSection === 'about'
   const formRailClass = 'max-w-[920px]'
   const builderColors = themeBuilder[builderMode]
   const activeTokenLabel = useMemo(() => {
@@ -944,7 +948,8 @@ export function SettingsDialog({
             ['general', 'General'],
             ['plugins', 'Plugins'],
             ['themes', 'Themes'],
-            ['admin', 'Admin']
+            ['admin', 'Admin'],
+            ['about', 'About']
           ] as const).map(([value, label]) => (
           <Button
             key={value}
@@ -1705,6 +1710,12 @@ export function SettingsDialog({
               })}
             </div>
           )}
+        </section>
+      )}
+
+      {showAbout && (
+        <section className="rounded-xl border border-line/20 bg-surface2 p-4">
+          <AboutPage />
         </section>
       )}
 

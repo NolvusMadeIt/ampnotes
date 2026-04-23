@@ -1,54 +1,57 @@
-# AMP Wiki Home
+# AMP Wiki
 
-Welcome to the AMP wiki.
+Welcome to the official AMP developer wiki.
 
-**AMP** means **All My Prompts**. AMP is a desktop prompt workspace for writing, validating, organizing, packaging, and distributing reusable prompt assets.
+**AMP (All My Prompts)** is a desktop-first prompt operations platform for writing, validating, organizing, packaging, sharing, and monetizing prompts, plugins, and themes.
 
-## Current App Model
+## Product Scope
 
-AMP runs as one primary workspace with:
+AMP is built around one integrated workspace:
 
-1. A left navigation rail for profiles, lanes, tag folders, marketplace access, and settings.
-2. A middle lane for filtered prompt lists, drag organization, and quick context.
-3. A right focus panel for reading, editing, validating, sharing, and converting prompts into templates.
+1. **Left rail**: lane navigation, folders, tags, workspace actions, settings, and marketplace entry.
+2. **Center lane**: searchable prompt cards, selection workflows, quick actions, and context menu actions.
+3. **Focus panel**: Summary, Read, Edit, validation, refine, sharing, and template conversion.
 
-## Visual Overview
+## What Is Documented Here
+
+This wiki covers:
+
+- Prompt workspace behavior and lane architecture.
+- Markdown reading/editing behavior (including image handling).
+- Theme and plugin packaging standards (manifest-first).
+- Marketplace integration and admin distribution flow.
+- Settings system and configuration references.
+- Installer, release, and auto-update pipeline.
+
+## Quick Index
+
+- [Prompt Workspace](./Prompt-Workspace.md)
+- [Themes And Plugins](./Themes-And-Plugins.md)
+- [Marketplace And Admin](./Marketplace-And-Admin.md)
+- [Settings Reference](./Settings-Reference.md)
+- [Installation And Updates](./Installation-And-Updates.md)
+- [Terms](../../terms.md)
+- [Privacy](../../privacy.md)
+- [Refund Policy](../../refund.md)
+
+## Visual References
 
 ![AMP showcase collage](./images/showcase-collage.png)
-
-### Key Screens
-
 ![All Pages (Dark)](./images/home-dark.png)
 ![Page Editor (Light)](./images/editor-light.png)
 ![Read View (Light)](./images/read-view-light.png)
 ![Improve Prompt Modal](./images/improve-modal-light.png)
 ![Templates (Dark)](./images/templates-dark.png)
 
-## Primary Workflows
+## Development Notes
 
-- Create and edit prompts.
-- Read prompts without immediately entering edit mode.
-- Improve prompts with Groq when configured.
-- Validate prompts before saving, sharing, or exporting.
-- Organize prompts by folders and tags.
-- Convert prompts into reusable templates.
-- Import/export prompt bundles, plugin manifests, and theme manifests.
-- Install marketplace plugins/themes from links or local folders.
+- Renderer app shell uses typed settings and marketplace state.
+- Prompt workflow emphasizes markdown consistency between edit/read modes.
+- Marketplace assets are file-backed and validated before registration.
+- Update checks use GitHub release artifacts and `latest.yml`.
 
-## Settings Areas
+## Related Repository Docs
 
-- General: theme mode, reading typography, Groq key, update checks, account actions.
-- Plugins: manifest editor, installed plugins, local folder import, file export, folder open actions.
-- Customize Themes: visual theme builder, installed themes, import/export, folder open actions.
-- Admin: creator profile, socials, avatar URL, local admin PIN setup/verify/clear.
-
-## Release And Update Model
-
-AMP uses GitHub Releases for Windows installer distribution and update checks. See [Installation And Updates](./Installation-And-Updates.md).
-
-## Related Pages
-
-- [Installation And Updates](./Installation-And-Updates.md)
-- [Themes And Plugins](./Themes-And-Plugins.md)
 - [README](../../README.md)
 - [Contributing](../../CONTRIBUTING.md)
+- [Updates](../../updates.md)

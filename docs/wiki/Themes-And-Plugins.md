@@ -1,77 +1,112 @@
-# Themes and Plugins
+# Themes And Plugins
 
-AMP treats themes and plugins as first-class, file-based assets.
+AMP manages themes and plugins as manifest-driven, installable assets.
 
-## Plugin Workflow
+## Plugin System
 
-### Create Or Edit
+### Plugin Manifest Workflow
 
-- Open Settings, then the Plugins tab.
-- Paste or edit plugin manifest JSON.
-- Save to register or update the plugin.
-- Use **Open Folder** to edit package files directly when needed.
+From **Settings > Plugins**, users and admins can:
 
-### Import Options
+- paste/edit manifest JSON
+- load manifest from marketplace code
+- import from file or local folder
+- copy/export manifest JSON
+- open plugin folder
+- enable/disable/remove installed plugin
 
-- Paste JSON directly.
-- Load JSON from a marketplace URL.
-- Import a local JSON manifest file.
-- Import from a local folder containing `manifest.json`.
+### Plugin Manifest Requirements (Typical)
 
-### Export Options
+- `schemaVersion`
+- `id`
+- `name`
+- `version`
+- `description`
+- `author`
+- `compatibility`
+- `entry`
+- optional package metadata (`packageUrl`, `packageChecksum`, `packageSizeBytes`)
 
-- Copy JSON from the UI.
-- Export manifest to file.
-- Open plugin folder for direct editing.
+### Safety and Validation
 
-### Safety Rules
+- Manifest schema is validated at import/register time.
+- Entry and permission values are constrained by app contracts.
+- Malformed manifests are rejected with actionable errors.
 
-- Permissions are allow-listed.
-- Entry paths are sanitized.
-- Homepages must use HTTPS when provided.
-- Optional `credits` and `socials` metadata can be stored in plugin manifests for attribution.
-- Imported plugin code should remain sandboxed and reviewable.
-- Import payloads are scanned for suspicious markers before AMP accepts them.
+## Theme System
 
-## Theme Workflow
+### Installed Themes
 
-### Visual Builder
+From **Settings > Themes**:
 
-The Theme Builder supports:
+- view installed themes
+- activate/deactivate
+- open folder
+- export/copy JSON
+- remove
 
-- Foundation tokens (`--bg`, `--surface`, `--text`, `--border`, etc.).
-- Interactive tokens (`--input`, `--ring`, `--popover`, `--accent`).
-- Status tokens (`--success`, `--warning`, `--danger`).
-- Chart tokens (`--chart-1` through `--chart-5`).
-- Sidebar token set.
-- Icon color tokens.
-- Typography dropdowns for sans, serif, and mono families.
-- Radius and shadow controls.
+### Customize Themes
 
-Each color token is tied to visible preview cards so users can see where the token appears before saving.
+From **Settings > Customize Themes**:
 
-### Manifest Sync
+- visual token editing
+- typography controls
+- shape/radius/layout controls
+- live preview
+- builder-to-manifest sync
+- manifest-to-builder load
+- marketplace code support
 
-- Build visually, then sync builder values into JSON manifest.
-- Load an existing manifest back into the builder for edits.
-- Custom/imported themes appear in Settings > General > Reading & Typography > Theme preset.
-- AMP honors custom theme font tokens when a marketplace theme is active.
-- Optional `credits` and `socials` metadata can be included in theme manifests for attribution.
+### Token Coverage
 
-### Import/Export Options
+Theme controls include:
 
-- Paste JSON.
-- Marketplace URL import.
-- Local JSON file import.
-- Local folder import (`manifest.json`).
-- File export.
-- Open theme folder.
+- app shell tokens
+- surface hierarchy
+- text + icon tokens
+- interactive controls
+- status tokens
+- typography stacks
+- spacing/layout values
+- scrollbar and focus styling values
 
-## Marketplace Prototype
+## Marketplace Packaging
 
-The repo includes marketplace work in both `docs/` and `marketplace/`. The desktop app can install marketplace packages through deep links or local folder imports.
+Themes/plugins can be distributed via marketplace code and ZIP package metadata.
 
-## Related Visuals
+Recommended package metadata:
 
-![Templates (Dark)](./images/templates-dark.png)
-![Page Editor (Light)](./images/editor-light.png)
+- screenshot
+- checksum
+- package URL (HTTPS `.zip`)
+- package checksum
+- release notes
+
+## Example Plugin Manifest (Abbreviated)
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "tools.wordcount",
+  "name": "Word Count",
+  "version": "1.0.0",
+  "entry": "plugins/wordcount/index.js",
+  "compatibility": "AMP 0.1.0+"
+}
+```
+
+## Example Theme Manifest (Abbreviated)
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "theme.sunset-paper",
+  "name": "Sunset Paper",
+  "version": "1.0.0",
+  "compatibility": "AMP 0.1.0+",
+  "tokens": {
+    "light": { "--bg": "#f6efe6" },
+    "dark": { "--bg": "#1f1713" }
+  }
+}
+```

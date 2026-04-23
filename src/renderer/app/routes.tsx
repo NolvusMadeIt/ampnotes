@@ -60,7 +60,7 @@ const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
 }
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
-const DEFAULT_APP_VERSION = '0.1.6'
+const DEFAULT_APP_VERSION = '0.1.7'
 const VERIFIED_GUMROAD_LICENSES_STORAGE_KEY = 'ampnotes.gumroad.verified-products.v1'
 
 interface PaidMarketplaceInstallRequest {
@@ -263,7 +263,7 @@ export default function Routes() {
   const [toasts, setToasts] = useState<AppToast[]>([])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'admin' | 'all'>('all')
+  const [settingsSection, setSettingsSection] = useState<'general' | 'plugins' | 'themes' | 'admin' | 'about' | 'all'>('all')
   const [legalPage, setLegalPage] = useState<'about' | 'tos' | null>(null)
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [marketplaceLoadKey, setMarketplaceLoadKey] = useState(0)
@@ -673,7 +673,7 @@ export default function Routes() {
     }
   }, [])
 
-  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'admin' | 'all') => {
+  const openSettings = useCallback((section: 'general' | 'plugins' | 'themes' | 'admin' | 'about' | 'all') => {
     setSettingsSection(section)
     setMarketplaceOpen(false)
     setLegalPage(null)

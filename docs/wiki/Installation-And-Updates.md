@@ -1,55 +1,78 @@
 # Installation And Updates
 
-AMP is packaged for Windows as an NSIS installer.
+AMP ships as a Windows installer with GitHub Releases as the distribution and update source.
 
-## Install
+## Install AMP
 
-1. Open the latest release on GitHub.
+1. Open the latest release in the repository.
 2. Download `AMP-Setup-<version>.exe`.
-3. Run the installer.
-4. Launch AMP from the Start Menu, desktop shortcut, or taskbar.
+3. Run the installer and choose install location if needed.
+4. Launch AMP from Start Menu, desktop shortcut, or taskbar.
 
-## Update Checks
+## Auto-Update Architecture
 
-AMP checks GitHub Releases for new versions when the packaged desktop app starts. The app also includes a **Check updates** action in the top navigation.
+AMP uses `electron-updater` with GitHub provider metadata.
 
-If an update exists, AMP prompts before opening or downloading the new release. If no release exists yet, development builds will say no published release was found.
+Required release assets:
 
-## Build Locally
+- `AMP-Setup-<version>.exe`
+- `AMP-Setup-<version>.exe.blockmap`
+- `latest.yml`
+
+If any of these are missing, update checks may report stale version state.
+
+## In-App Update Flow
+
+Users can trigger updates from **Check updates** in the app.
+
+Update actions:
+
+- Update now
+- Install when app closes
+- Auto next launch
+- View release changes
+
+Release notes are pulled from repository update notes and shown in-app.
+
+## Development Build Notes
+
+Development (`electron-vite dev`) does not behave like packaged release update mode.
+Use packaged builds (`npm run dist`) to verify production updater behavior.
+
+## Local Build Commands
 
 ```bash
 npm install
+npm run typecheck
 npm run dist
 ```
 
-Generated installer files are written to `dist/`.
-
-For current release packaging (0.1.2), expected assets include:
-
-- `AMP-Setup-0.1.2.exe`
-- `AMP-Setup-0.1.2.exe.blockmap`
-- `latest.yml`
+Installer artifacts are generated in `dist/`.
 
 ## Native Module Repair
 
-If Electron reports that `better-sqlite3` was compiled for the wrong Node version, rebuild native modules:
+For Electron native module rebuild:
 
 ```bash
 npm run rebuild:native
 ```
 
-For Node/Vitest usage:
+For Node-based testing context:
 
 ```bash
 npm run rebuild:node
 ```
 
-## Release Checklist
+## Release Procedure (Production)
 
-1. Update `package.json` version.
-2. Run `npm run typecheck`.
-3. Run `npm test`.
-4. Run `npm run dist`.
-5. Commit and push changes.
-6. Create a GitHub release tag such as `v0.1.2`.
-7. Upload the installer and update metadata from `dist/`.
+1. Update app version (`package.json` + renderer fallback version).
+2. Update `updates.md` release notes.
+3. Run `npm run typecheck`.
+4. Build installer (`npm run dist`).
+5. Commit and push.
+6. Tag release (`vX.Y.Z`).
+7. Create GitHub release and upload:
+   - `.exe`
+   - `.blockmap`
+   - `latest.yml`
+8. Verify in-app updater detects latest release.

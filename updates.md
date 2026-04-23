@@ -1,5 +1,12 @@
 # AMP Updates
 
+## 2026-04-23 00:10 ET - v0.1.7
+- Added a full in-app About section tab directly inside Settings.
+- Rebuilt the About page with expanded professional product documentation and architecture overview.
+- Added support widget integration on About page for creator support.
+- Expanded wiki coverage with end-to-end product documentation and examples.
+- Added policy documents: Terms, Privacy, and Refund policy.
+
 ## 2026-04-22 17:40 ET - v0.1.6
 - Added Gmail-style prompt selection with per-row checkboxes and Select all in the lane toolbar.
 - Added bulk prompt actions for selected items (favorite toggle, clear selection, delete selected).
