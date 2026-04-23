@@ -12,9 +12,13 @@ import {
 import ampLogoUrl from '@renderer/assets/imgs/amp_logo.png'
 import {
   ArrowUpRight,
+  BadgeCheck,
+  Circle,
   ChevronRight,
   ChevronsUpDown,
   Copy,
+  EllipsisVertical,
+  Eye,
   FilePlus2,
   Filter,
   Folder,
@@ -1575,7 +1579,13 @@ export function NeoApp({
             </div>
             <div className="mt-2 flex items-center gap-1 rounded-md border border-line/20 bg-surface2 px-1 py-1">
               <label className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs font-semibold text-muted">
-                <input type="checkbox" checked={allLaneSelected} onChange={toggleSelectAllInLane} className="h-4 w-4 accent-[var(--color-accent)]" />
+                <input
+                  type="checkbox"
+                  checked={allLaneSelected}
+                  onChange={toggleSelectAllInLane}
+                  className="h-4 w-4"
+                  style={{ accentColor: 'var(--success)' }}
+                />
                 <span>Select all</span>
               </label>
               <div className="h-5 w-px bg-line/30" />
@@ -1710,15 +1720,14 @@ export function NeoApp({
                           <input
                             type="checkbox"
                             checked={selectedInBulk}
-                            className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                            className="mt-1 h-4 w-4 shrink-0"
+                            style={{ accentColor: 'var(--success)' }}
                             onClick={(event) => event.stopPropagation()}
                             onChange={(event) => togglePromptSelection(prompt.id, event.target.checked)}
                           />
                           {promptImage ? (
                             <img src={promptImage} alt="" className="mt-0.5 h-9 w-9 shrink-0 rounded-md border border-line/20 object-cover" />
-                          ) : (
-                            <div className="mt-0.5 h-9 w-9 shrink-0 rounded-md border border-line/20 bg-surface" />
-                          )}
+                          ) : null}
                           <div className="min-w-0">
                             <h3 className="editorial-heading truncate text-[1.8rem] font-semibold leading-[1.05]">{prompt.title}</h3>
                             <p className="text-xs text-muted">
@@ -1731,6 +1740,21 @@ export function NeoApp({
                         <div className="flex items-center gap-1.5 text-muted">
                           {prompt.pinned && <Pin size={13} className="text-warning" />}
                           {prompt.favorite && <Heart size={13} className="text-danger" />}
+                          <button
+                            type="button"
+                            className="grid h-6 w-6 place-items-center rounded-md border border-line/20 bg-surface text-muted transition-colors hover:text-text"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setPromptMenu({
+                                promptId: prompt.id,
+                                x: event.clientX - 190,
+                                y: event.clientY + 6
+                              })
+                            }}
+                            title="Prompt actions"
+                          >
+                            <EllipsisVertical size={13} />
+                          </button>
                         </div>
                       </div>
                       <p className="mt-2 text-xs text-text">{excerpt(stripMarkdownForCard(prompt.content), 170)}</p>
@@ -1812,7 +1836,7 @@ export function NeoApp({
 
       {promptMenu && contextPrompt && (
         <div
-          className="fixed z-[120] min-w-[240px] border border-line/30 bg-surface p-1 shadow-2xl"
+          className="fixed z-[120] w-[212px] border border-line/30 bg-surface p-1 shadow-2xl"
           style={{ left: promptMenu.x, top: promptMenu.y }}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -1825,6 +1849,7 @@ export function NeoApp({
               setPromptMenu(null)
             }}
           >
+            <Star size={14} />
             {selectedPromptIdSet.has(contextPrompt.id) ? 'Remove from selection' : 'Add to selection'}
           </button>
           <button
@@ -1836,6 +1861,7 @@ export function NeoApp({
               setPromptMenu(null)
             }}
           >
+            <Circle size={14} />
             Select only this prompt
           </button>
           <button
@@ -1846,6 +1872,7 @@ export function NeoApp({
               setPromptMenu(null)
             }}
           >
+            <BadgeCheck size={14} />
             Select all in this view
           </button>
           <button
@@ -1856,7 +1883,44 @@ export function NeoApp({
               setPromptMenu(null)
             }}
           >
+            <X size={14} />
             Clear selection
+          </button>
+          <div className="my-1 border-t border-line/20" />
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              onSelectPromptId(contextPrompt.id)
+              setFocus('read')
+              setPromptMenu(null)
+            }}
+          >
+            <Eye size={14} />
+            Open in Read
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              onSelectPromptId(contextPrompt.id)
+              setFocus('edit')
+              setPromptMenu(null)
+            }}
+          >
+            <PencilLine size={14} />
+            Open in Edit
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              void onCopyPrompt(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            <Copy size={14} />
+            Copy prompt
           </button>
           <div className="my-1 border-t border-line/20" />
           <button
@@ -1876,6 +1940,7 @@ export function NeoApp({
               setPromptMenu(null)
             }}
           >
+            <Heart size={14} />
             {contextPrompt.favorite ? 'Remove favorite' : 'Add favorite'}
           </button>
           <button
@@ -1895,20 +1960,24 @@ export function NeoApp({
               setPromptMenu(null)
             }}
           >
+            <Pin size={14} />
             {contextPrompt.pinned ? 'Unpin prompt' : 'Pin prompt'}
           </button>
           <div className="my-1 border-t border-line/20" />
-          <p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">Move To Tag Folder</p>
-          {folders.length === 0 ? (
+          <p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">Move Tag To Folder</p>
+          {contextPrompt.tags.length === 0 ? (
+            <p className="px-2 py-1 text-[11px] text-muted">This prompt has no tags yet</p>
+          ) : folders.length === 0 ? (
             <p className="px-2 py-1 text-[11px] text-muted">No folders yet</p>
           ) : (
             folders.map((folder) => (
               <button
                 key={`menu-folder-${folder}`}
                 type="button"
-                className={navSubRowClass(contextPrompt.folder === folder)}
+                className={navSubRowClass(contextPrompt.tags.some((tag) => (tagFolderMap[folder] ?? []).includes(tag)))}
                 onClick={() => {
-                  void movePromptToFolder(contextPrompt.id, folder)
+                  const uniqueTags = Array.from(new Set(contextPrompt.tags))
+                  uniqueTags.forEach((tag) => moveTagToFolder(tag, folder))
                   setPromptMenu(null)
                 }}
               >
@@ -2273,6 +2342,49 @@ function NeoFocusPanel({
 
         {focus === 'read' && (
           <article className="border border-line/20 bg-surface2 p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-1 border-b border-line/20 pb-3">
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => setFocus('browse')}
+              >
+                <House size={14} />
+                Summary
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => setFocus('edit')}
+              >
+                <PencilLine size={14} />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => void onCopyPrompt(prompt)}
+              >
+                <Copy size={14} />
+                Copy
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface px-2 text-xs text-muted transition hover:text-text"
+                disabled={isValidating}
+                onClick={() => void onValidatePrompt(prompt)}
+              >
+                <ShieldCheck size={14} />
+                {isValidating ? 'Validating...' : 'Validate'}
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => onSharePrompt(prompt)}
+              >
+                <Share2 size={14} />
+                Share
+              </button>
+            </div>
             <MarkdownContent content={prompt.content} />
           </article>
         )}

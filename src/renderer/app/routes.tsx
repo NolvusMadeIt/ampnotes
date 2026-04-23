@@ -60,7 +60,7 @@ const DEFAULT_MARKETPLACE_FILTERS: MarketplaceFiltersState = {
 }
 
 const SESSION_TTL_MS = 48 * 60 * 60 * 1000
-const DEFAULT_APP_VERSION = '0.1.8'
+const DEFAULT_APP_VERSION = '0.1.9'
 const VERIFIED_GUMROAD_LICENSES_STORAGE_KEY = 'ampnotes.gumroad.verified-products.v1'
 
 interface PaidMarketplaceInstallRequest {
@@ -100,6 +100,8 @@ type UpdateCheckState = {
   reason?: string
   packaged: boolean
 }
+
+type UpdateActionPending = 'install_now' | 'app_close' | 'next_launch'
 
 function formatUpdateDate(value?: string): string {
   if (!value) {
@@ -291,6 +293,8 @@ export default function Routes() {
   const [updateCenterOpen, setUpdateCenterOpen] = useState(false)
   const [updateCenterLoading, setUpdateCenterLoading] = useState(false)
   const [updateState, setUpdateState] = useState<UpdateCheckState | null>(null)
+  const [updateActionPending, setUpdateActionPending] = useState<UpdateActionPending | null>(null)
+  const [updateActionStatus, setUpdateActionStatus] = useState<string | null>(null)
 
   const toastTimersRef = useRef<Map<number, number>>(new Map())
   const sessionExpiryTimerRef = useRef<number | null>(null)
@@ -456,13 +460,21 @@ export default function Routes() {
       flashToast('Update scheduling is not available in this build.', 'warning')
       return
     }
-    const result = await api.app.scheduleUpdate('next_launch')
-    if (!result.ok) {
-      flashToast(result.reason ?? 'Could not schedule update for next launch.', 'warning')
-      return
+    setUpdateActionPending('next_launch')
+    setUpdateActionStatus('Scheduling update for next launch...')
+    try {
+      const result = await api.app.scheduleUpdate('next_launch')
+      if (!result.ok) {
+        flashToast(result.reason ?? 'Could not schedule update for next launch.', 'warning')
+        setUpdateActionStatus('Could not schedule update for next launch.')
+        return
+      }
+      clearUpdateToast()
+      setUpdateActionStatus('Update scheduled for next launch.')
+      flashToast('Update scheduled for next launch.', 'success')
+    } finally {
+      setUpdateActionPending(null)
     }
-    clearUpdateToast()
-    flashToast('Update scheduled for next launch.', 'success')
   }, [api.app, clearUpdateToast, flashToast])
 
   const downloadUpdate = useCallback(async (timing: 'install_now' | 'app_close') => {
@@ -470,10 +482,24 @@ export default function Routes() {
       flashToast('Installer download is not available in this build.', 'warning')
       return
     }
-    const result = await api.app.downloadUpdate(timing)
-    if (!result.ok) {
-      flashToast(result.reason ?? 'Unable to start update download.', 'warning')
-      return
+    setUpdateActionPending(timing)
+    setUpdateActionStatus(
+      timing === 'install_now'
+        ? 'Preparing immediate update download...'
+        : 'Preparing update download for install on close...'
+    )
+    try {
+      const result = await api.app.downloadUpdate(timing)
+      if (!result.ok) {
+        flashToast(result.reason ?? 'Unable to start update download.', 'warning')
+        setUpdateActionPending(null)
+        setUpdateActionStatus('Unable to start update download.')
+        return
+      }
+    } catch (error) {
+      setUpdateActionPending(null)
+      setUpdateActionStatus(error instanceof Error ? error.message : 'Unable to start update download.')
+      throw error
     }
   }, [api.app, flashToast])
 
@@ -566,6 +592,11 @@ export default function Routes() {
         return
       }
       if (event.type === 'download-started') {
+        setUpdateActionStatus(
+          event.installTiming === 'install_now'
+            ? 'Downloading update now. AMP will restart when complete.'
+            : 'Downloading update now. It will install when AMP closes.'
+        )
         const toastId = updateToastIdRef.current ?? toastCounterRef.current++
         updateToastIdRef.current = toastId
         upsertToast({
@@ -582,6 +613,8 @@ export default function Routes() {
         return
       }
       if (event.type === 'download-progress') {
+        const percent = Math.max(0, Math.min(100, Math.round(event.percent ?? 0)))
+        setUpdateActionStatus(`Downloading update... ${percent}%`)
         const toastId = updateToastIdRef.current ?? toastCounterRef.current++
         updateToastIdRef.current = toastId
         upsertToast({
@@ -595,6 +628,12 @@ export default function Routes() {
         return
       }
       if (event.type === 'downloaded') {
+        setUpdateActionPending(null)
+        setUpdateActionStatus(
+          event.installTiming === 'install_now'
+            ? 'Download complete. Finalizing install now...'
+            : 'Download complete. Ready to install when AMP closes.'
+        )
         const toastId = updateToastIdRef.current ?? toastCounterRef.current++
         updateToastIdRef.current = toastId
         upsertToast({
@@ -627,10 +666,14 @@ export default function Routes() {
         return
       }
       if (event.type === 'scheduled') {
+        setUpdateActionPending(null)
+        setUpdateActionStatus('Update scheduled for next launch.')
         flashToast('Update is scheduled for next launch.', 'success')
         return
       }
       if (event.type === 'error') {
+        setUpdateActionPending(null)
+        setUpdateActionStatus(event.message ?? 'Update flow failed.')
         flashToast(event.message ?? 'Update flow failed.', 'danger')
       }
     })
@@ -1929,26 +1972,27 @@ export default function Routes() {
               onClick={() => {
                 void downloadUpdate('install_now')
               }}
-              disabled={!updateState?.updateAvailable}
+              disabled={!updateState?.updateAvailable || updateActionPending !== null}
             >
-              Update now
+              {updateActionPending === 'install_now' ? 'Starting update...' : 'Update now'}
             </Button>
             <Button
               variant="secondary"
               onClick={() => {
                 void downloadUpdate('app_close')
               }}
-              disabled={!updateState?.updateAvailable}
+              disabled={!updateState?.updateAvailable || updateActionPending !== null}
             >
-              Install on close
+              {updateActionPending === 'app_close' ? 'Scheduling install...' : 'Install on close'}
             </Button>
             <Button
               variant="secondary"
               onClick={() => {
                 void scheduleUpdateForNextLaunch()
               }}
+              disabled={updateActionPending !== null}
             >
-              Auto next launch
+              {updateActionPending === 'next_launch' ? 'Scheduling...' : 'Auto next launch'}
             </Button>
             <Button
               variant="secondary"
@@ -1959,6 +2003,7 @@ export default function Routes() {
               Open release page
             </Button>
           </div>
+          {updateActionStatus ? <p className="text-xs text-muted">{updateActionStatus}</p> : null}
 
           <div className="max-h-[52vh] overflow-y-auto rounded-md border border-line/20 bg-surface p-4">
             {updateState?.updatesMarkdown?.trim()

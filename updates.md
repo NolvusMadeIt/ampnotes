@@ -1,5 +1,16 @@
 # AMP Updates
 
+## 2026-04-23 13:55 ET - v0.1.9
+- Improved update action feedback in the Updates modal so users see immediate status when clicking:
+  - Update now
+  - Install on close
+  - Auto next launch
+- Added in-modal live status messaging for scheduling/download progress, reducing "did it freeze?" uncertainty.
+- Added branded NSIS installer visuals (header + sidebar) with AMP logo for a cleaner setup wizard experience.
+- Polished context menu behavior:
+  - reduced menu width
+  - fixed **Move Tag To Folder** so it moves prompt tags into the selected tag folder.
+
 ## 2026-04-23 13:20 ET - v0.1.8
 - Added a new **Other** controls group under Customize Themes > Layout, Effects & Notifications.
 - Added slider-driven shadow controls (x/y offset, blur, spread, color) so users do not have to hand-edit CSS shadow values.
