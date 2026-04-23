@@ -1,5 +1,11 @@
 # AMP Updates
 
+## 2026-04-23 13:20 ET - v0.1.8
+- Added a new **Other** controls group under Customize Themes > Layout, Effects & Notifications.
+- Added slider-driven shadow controls (x/y offset, blur, spread, color) so users do not have to hand-edit CSS shadow values.
+- Added in-app creation guidance for Plugins and Customize Themes, including manifest/code/install flow.
+- Updated wiki documentation with clearer plugin/theme authoring and validation guidance.
+
 ## 2026-04-23 00:10 ET - v0.1.7
 - Added a full in-app About section tab directly inside Settings.
 - Rebuilt the About page with expanded professional product documentation and architecture overview.

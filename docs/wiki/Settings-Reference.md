@@ -56,6 +56,7 @@ This is the full settings reference for AMP.
 - Open plugin folder
 - Enable/disable/remove plugin
 - Marketplace code loading and copy workflow
+- In-app guidance card explains manifest -> code -> install flow
 
 ## Themes
 
@@ -78,10 +79,18 @@ This is the full settings reference for AMP.
   - sans
   - serif
   - mono
+- Layout, effects, and notification token controls
+- "Other" section for quick radius + shadow tuning:
+  - radius
+  - shadow x/y offset
+  - blur
+  - spread
+  - color
 - Manifest sync in both directions:
   - builder -> JSON
   - JSON -> builder
 - Marketplace code generation/loading
+- In-app guidance card explains builder -> manifest -> install/code flow
 
 ## Admin
 

@@ -456,6 +456,45 @@ function parseThemeManifestJson(raw: string): CreateThemeManifestInput {
   }
 }
 
+type ShadowControls = {
+  x: number
+  y: number
+  blur: number
+  spread: number
+  color: string
+}
+
+const DEFAULT_SHADOW_CONTROLS: ShadowControls = {
+  x: 0,
+  y: 10,
+  blur: 30,
+  spread: 0,
+  color: 'rgba(0, 0, 0, 0.12)'
+}
+
+function parseShadowControls(value: string): ShadowControls {
+  const match = value
+    .trim()
+    .match(
+      /^(-?\d+(?:\.\d+)?)px?\s+(-?\d+(?:\.\d+)?)px?\s+(-?\d+(?:\.\d+)?)px?\s+(-?\d+(?:\.\d+)?)px?\s+(.+)$/
+    )
+  if (!match) {
+    return DEFAULT_SHADOW_CONTROLS
+  }
+  const [, x, y, blur, spread, color] = match
+  return {
+    x: Number.parseFloat(x),
+    y: Number.parseFloat(y),
+    blur: Number.parseFloat(blur),
+    spread: Number.parseFloat(spread),
+    color: color.trim()
+  }
+}
+
+function formatShadowControls(controls: ShadowControls): string {
+  return `${controls.x}px ${controls.y}px ${controls.blur}px ${controls.spread}px ${controls.color}`
+}
+
 function toBase64Url(value: string): string {
   const bytes = new TextEncoder().encode(value)
   let binary = ''
@@ -669,6 +708,7 @@ export function SettingsDialog({
   const showAbout = activeSection === 'about'
   const formRailClass = 'max-w-[920px]'
   const builderColors = themeBuilder[builderMode]
+  const shadowControls = useMemo(() => parseShadowControls(themeBuilder.shadow), [themeBuilder.shadow])
   const activeTokenLabel = useMemo(() => {
     if (!activeBuilderToken) {
       return null
@@ -706,6 +746,14 @@ export function SettingsDialog({
     } finally {
       setBusyKey(null)
     }
+  }
+
+  const updateShadowControl = (key: keyof ShadowControls, value: number | string) => {
+    const next = { ...shadowControls, [key]: value }
+    setThemeBuilder((current) => ({
+      ...current,
+      shadow: formatShadowControls(next)
+    }))
   }
 
   const loadManifestFromCode = async (
@@ -1219,6 +1267,19 @@ export function SettingsDialog({
               Import from marketplace URL, paste JSON, load a local file/folder, then edit or export safely.
             </p>
           </div>
+
+          <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
+            <p className="text-sm font-semibold">How plugin install codes work</p>
+            <ol className="list-decimal space-y-1 pl-5 text-xs text-muted">
+              <li>Build a plugin manifest JSON with `id`, `name`, `version`, `entry`, and compatibility fields.</li>
+              <li>Save it with <span className="font-semibold text-body">Save Plugin Manifest</span> so AMP validates schema and permissions.</li>
+              <li>Use <span className="font-semibold text-body">Copy Code</span> to generate an `amp-plugin:` install code for sharing.</li>
+              <li>Any user can paste that code into <span className="font-semibold text-body">Load Code</span> to install exactly that manifest.</li>
+            </ol>
+            <p className="text-xs text-muted">
+              Plugin logic still comes from your package entry file (`entry`). The code is the transport layer for the manifest contract.
+            </p>
+          </article>
 
           {marketplaceError && (
             <div className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
@@ -1734,6 +1795,19 @@ export function SettingsDialog({
             </Button>
           </div>
 
+          <article className="space-y-2 rounded-lg border border-line/20 bg-surface p-3">
+            <p className="text-sm font-semibold">How theme creation and sharing works</p>
+            <ol className="list-decimal space-y-1 pl-5 text-xs text-muted">
+              <li>Edit tokens in Theme Builder (colors, typography, layout, effects).</li>
+              <li>Use <span className="font-semibold text-body">Create Manifest from Builder</span> to sync values into JSON.</li>
+              <li>Save with <span className="font-semibold text-body">Save Theme</span> to validate and install into Installed Themes.</li>
+              <li>Use <span className="font-semibold text-body">Copy Code</span> to generate an `amp-theme:` install code for marketplace sharing.</li>
+            </ol>
+            <p className="text-xs text-muted">
+              Codes carry manifest data only. Theme behavior is driven by tokens AMP already supports, so themes stay predictable and safe.
+            </p>
+          </article>
+
           {marketplaceError && (
             <div className="rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
               {marketplaceError}
@@ -1943,6 +2017,101 @@ export function SettingsDialog({
                     onChange={(event) => setThemeBuilder((current) => ({ ...current, shadow: event.target.value }))}
                   />
                 </label>
+                <details open className="space-y-2 rounded-lg border border-line/20 bg-surface2 p-3">
+                  <summary className="cursor-pointer text-xs font-semibold">Other</summary>
+                  <label className="block text-xs">
+                    <span className="mb-1 block font-medium text-muted">Radius</span>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={1.5}
+                        step={0.05}
+                        className="w-full accent-accent"
+                        value={Number.parseFloat(themeBuilder.radius)}
+                        onChange={(event) =>
+                          setThemeBuilder((current) => ({
+                            ...current,
+                            radius: `${event.target.value}rem`,
+                            radiusMd: `${event.target.value}rem`
+                          }))
+                        }
+                      />
+                      <span className="w-16 text-right font-mono text-[10px] text-muted">{themeBuilder.radius}</span>
+                    </div>
+                  </label>
+                  <p className="text-xs font-medium text-muted">Shadow</p>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">X Offset</span>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={-40}
+                          max={40}
+                          step={1}
+                          className="w-full accent-accent"
+                          value={shadowControls.x}
+                          onChange={(event) => updateShadowControl('x', Number(event.target.value))}
+                        />
+                        <span className="w-14 text-right font-mono text-[10px] text-muted">{shadowControls.x}px</span>
+                      </div>
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">Y Offset</span>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={-40}
+                          max={40}
+                          step={1}
+                          className="w-full accent-accent"
+                          value={shadowControls.y}
+                          onChange={(event) => updateShadowControl('y', Number(event.target.value))}
+                        />
+                        <span className="w-14 text-right font-mono text-[10px] text-muted">{shadowControls.y}px</span>
+                      </div>
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">Blur</span>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={1}
+                          className="w-full accent-accent"
+                          value={shadowControls.blur}
+                          onChange={(event) => updateShadowControl('blur', Number(event.target.value))}
+                        />
+                        <span className="w-14 text-right font-mono text-[10px] text-muted">{shadowControls.blur}px</span>
+                      </div>
+                    </label>
+                    <label className="block text-xs">
+                      <span className="mb-1 block font-medium text-muted">Spread</span>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={-20}
+                          max={40}
+                          step={1}
+                          className="w-full accent-accent"
+                          value={shadowControls.spread}
+                          onChange={(event) => updateShadowControl('spread', Number(event.target.value))}
+                        />
+                        <span className="w-14 text-right font-mono text-[10px] text-muted">{shadowControls.spread}px</span>
+                      </div>
+                    </label>
+                  </div>
+                  <label className="block text-xs">
+                    <span className="mb-1 block font-medium text-muted">Color</span>
+                    <input
+                      className="h-9 w-full border border-line/20 bg-surface px-2 font-mono outline-none focus:border-accent/10"
+                      value={shadowControls.color}
+                      onChange={(event) => updateShadowControl('color', event.target.value)}
+                    />
+                  </label>
+                </details>
                 <div className="grid gap-2 md:grid-cols-2">
                   {([
                     ['ambientA', 'Ambient glow A'],
