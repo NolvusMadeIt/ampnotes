@@ -1,5 +1,12 @@
 # AMP Updates
 
+## 2026-04-22 17:40 ET - v0.1.6
+- Added Gmail-style prompt selection with per-row checkboxes and Select all in the lane toolbar.
+- Added bulk prompt actions for selected items (favorite toggle, clear selection, delete selected).
+- Reworked prompt right-click context actions to focus on selection and organization workflow.
+- Prompt cards now show compact image thumbnails when markdown image embeds exist.
+- Prompt card excerpts now strip markdown image syntax noise for cleaner scanning.
+
 ## 2026-04-22 11:05 ET - v0.1.5
 - Image embeds now render only in Read mode (not in Summary mode).
 - Added a Gmail-style quick action toolbar to the prompt list column.
