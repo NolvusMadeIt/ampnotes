@@ -15,7 +15,6 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Copy,
-  EllipsisVertical,
   FilePlus2,
   Filter,
   Folder,
@@ -154,6 +153,20 @@ function excerpt(text: string, maxLength: number): string {
     return cleaned
   }
   return `${cleaned.slice(0, maxLength).trim()}...`
+}
+
+function stripMarkdownForCard(text: string): string {
+  return text
+    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+}
+
+function firstMarkdownImageUrl(text: string): string | null {
+  const match = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(text)
+  return match?.[1] ?? null
 }
 
 function markdownExcerpt(text: string, maxLength: number): string {
@@ -525,6 +538,7 @@ export function NeoApp({
   const [customFolders, setCustomFolders] = useState<string[]>([])
   const [draggedPromptId, setDraggedPromptId] = useState<string | null>(null)
   const [promptMenu, setPromptMenu] = useState<PromptContextMenuState | null>(null)
+  const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([])
   const [tagFolderMap, setTagFolderMap] = useState<Record<string, string[]>>({})
   const [hydratedStorageKey, setHydratedStorageKey] = useState<string | null>(null)
 
@@ -721,6 +735,20 @@ export function NeoApp({
     return bySearch
   }, [activeTag, lane, prompts, search, sortedByRecentUse, tagFolderMap])
 
+  const lanePromptIds = useMemo(() => lanePrompts.map((prompt) => prompt.id), [lanePrompts])
+  const selectedPromptIdSet = useMemo(() => new Set(selectedPromptIds), [selectedPromptIds])
+  const selectedPromptCount = selectedPromptIds.length
+  const allLaneSelected = lanePrompts.length > 0 && lanePrompts.every((prompt) => selectedPromptIdSet.has(prompt.id))
+  const singleSelectionId = selectedPromptCount === 1 ? selectedPromptIds[0] ?? null : null
+  const singleSelectedPrompt = useMemo(
+    () => (singleSelectionId ? prompts.find((prompt) => prompt.id === singleSelectionId) ?? null : null),
+    [prompts, singleSelectionId]
+  )
+
+  useEffect(() => {
+    setSelectedPromptIds((current) => current.filter((id) => lanePromptIds.includes(id)))
+  }, [lanePromptIds])
+
   const folders = useMemo(() => {
     const folderSet = new Set<string>()
     customFolders.forEach((folder) => folderSet.add(folder))
@@ -804,6 +832,50 @@ export function NeoApp({
     setFocus('browse')
     onSelectTag(null)
     onOpenWorkspace()
+  }
+
+  function togglePromptSelection(promptId: string, checked: boolean): void {
+    setSelectedPromptIds((current) => {
+      if (checked) {
+        if (current.includes(promptId)) {
+          return current
+        }
+        return [...current, promptId]
+      }
+      return current.filter((id) => id !== promptId)
+    })
+  }
+
+  function toggleSelectAllInLane(): void {
+    if (allLaneSelected) {
+      setSelectedPromptIds([])
+      return
+    }
+    setSelectedPromptIds(lanePrompts.map((prompt) => prompt.id))
+  }
+
+  async function bulkDeleteSelected(): Promise<void> {
+    const selected = prompts.filter((prompt) => selectedPromptIdSet.has(prompt.id))
+    for (const prompt of selected) {
+      await onDeletePrompt(prompt)
+    }
+    setSelectedPromptIds([])
+  }
+
+  async function bulkToggleFavoriteSelected(): Promise<void> {
+    const selected = prompts.filter((prompt) => selectedPromptIdSet.has(prompt.id))
+    for (const prompt of selected) {
+      await onSavePrompt(prompt, {
+        title: prompt.title,
+        content: prompt.content,
+        category: prompt.category,
+        tags: prompt.tags,
+        folder: prompt.folder ?? undefined,
+        useCase: prompt.useCase,
+        aiTarget: prompt.aiTarget,
+        favorite: !prompt.favorite
+      })
+    }
   }
 
   function updateMarketplaceFilters(updates: Partial<MarketplaceFiltersState>): void {
@@ -1502,14 +1574,23 @@ export function NeoApp({
               />
             </div>
             <div className="mt-2 flex items-center gap-1 rounded-md border border-line/20 bg-surface2 px-1 py-1">
+              <label className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-xs font-semibold text-muted">
+                <input type="checkbox" checked={allLaneSelected} onChange={toggleSelectAllInLane} className="h-4 w-4 accent-[var(--color-accent)]" />
+                <span>Select all</span>
+              </label>
+              <div className="h-5 w-px bg-line/30" />
+              <span className="px-2 text-xs text-muted">
+                {selectedPromptCount > 0 ? `${selectedPromptCount} selected` : 'No selection'}
+              </span>
+              <div className="h-5 w-px bg-line/30" />
               <button
                 type="button"
                 className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt}
+                disabled={!singleSelectedPrompt}
                 title="Open Read"
                 onClick={() => {
-                  if (!selectedPrompt) return
-                  onSelectPromptId(selectedPrompt.id)
+                  if (!singleSelectedPrompt) return
+                  onSelectPromptId(singleSelectedPrompt.id)
                   setFocus('read')
                 }}
               >
@@ -1518,104 +1599,46 @@ export function NeoApp({
               <button
                 type="button"
                 className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt}
+                disabled={!singleSelectedPrompt}
                 title="Open Edit"
                 onClick={() => {
-                  if (!selectedPrompt) return
-                  onSelectPromptId(selectedPrompt.id)
+                  if (!singleSelectedPrompt) return
+                  onSelectPromptId(singleSelectedPrompt.id)
                   setFocus('edit')
                 }}
               >
                 <PencilLine size={14} />
               </button>
-              <div className="h-5 w-px bg-line/30" />
               <button
                 type="button"
                 className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt}
+                disabled={selectedPromptCount === 0}
                 title="Toggle Favorite"
                 onClick={() => {
-                  if (!selectedPrompt) return
-                  void onSavePrompt(selectedPrompt, {
-                    title: selectedPrompt.title,
-                    content: selectedPrompt.content,
-                    category: selectedPrompt.category,
-                    tags: selectedPrompt.tags,
-                    folder: selectedPrompt.folder ?? undefined,
-                    useCase: selectedPrompt.useCase,
-                    aiTarget: selectedPrompt.aiTarget,
-                    favorite: !selectedPrompt.favorite
-                  })
+                  void bulkToggleFavoriteSelected()
                 }}
               >
                 <Heart size={14} />
               </button>
               <button
                 type="button"
-                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt}
-                title="Toggle Pin"
+                className="inline-flex h-8 items-center rounded-md px-2 text-xs text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
+                disabled={selectedPromptCount === 0}
+                title="Clear selection"
                 onClick={() => {
-                  if (!selectedPrompt) return
-                  void onSavePrompt(selectedPrompt, {
-                    title: selectedPrompt.title,
-                    content: selectedPrompt.content,
-                    category: selectedPrompt.category,
-                    tags: selectedPrompt.tags,
-                    folder: selectedPrompt.folder ?? undefined,
-                    useCase: selectedPrompt.useCase,
-                    aiTarget: selectedPrompt.aiTarget,
-                    pinned: !selectedPrompt.pinned
-                  })
+                  setSelectedPromptIds([])
                 }}
               >
-                <Pin size={14} />
-              </button>
-              <button
-                type="button"
-                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt}
-                title="Copy"
-                onClick={() => {
-                  if (!selectedPrompt) return
-                  void onCopyPrompt(selectedPrompt)
-                }}
-              >
-                <Copy size={14} />
-              </button>
-              <button
-                type="button"
-                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt}
-                title="Share"
-                onClick={() => {
-                  if (!selectedPrompt) return
-                  onSharePrompt(selectedPrompt)
-                }}
-              >
-                <Share2 size={14} />
-              </button>
-              <button
-                type="button"
-                className="grid h-8 w-8 place-items-center rounded-md text-muted transition-colors hover:bg-surface hover:text-text disabled:opacity-40"
-                disabled={!selectedPrompt || validatingPromptId === selectedPrompt.id}
-                title="Validate"
-                onClick={() => {
-                  if (!selectedPrompt) return
-                  void onValidatePrompt(selectedPrompt)
-                }}
-              >
-                <ShieldCheck size={14} />
+                Clear
               </button>
               <div className="h-5 w-px bg-line/30" />
               <button
                 type="button"
                 className="grid h-8 w-8 place-items-center rounded-md text-danger transition-colors hover:bg-danger/15 disabled:opacity-40"
-                disabled={!selectedPrompt}
-                title="Delete"
+                disabled={selectedPromptCount === 0}
+                title="Delete selected"
                 onClick={() => {
-                  if (!selectedPrompt) return
-                  void onDeletePrompt(selectedPrompt)
+                  void bulkDeleteSelected()
                 }}
               >
                 <Trash2 size={14} />
@@ -1651,6 +1674,8 @@ export function NeoApp({
                   const provider = normalizeProvider(prompt)
                   const visibleTags = prompt.tags.slice(0, 4)
                   const extraTags = Math.max(0, prompt.tags.length - visibleTags.length)
+                  const selectedInBulk = selectedPromptIdSet.has(prompt.id)
+                  const promptImage = firstMarkdownImageUrl(prompt.content)
                   return (
                     <article
                       key={prompt.id}
@@ -1681,20 +1706,34 @@ export function NeoApp({
                       }}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <h3 className="editorial-heading truncate text-[1.8rem] font-semibold leading-[1.05]">{prompt.title}</h3>
-                          <p className="text-xs text-muted">
-                            {prompt.validatedAt
-                              ? `Validated on ${new Date(prompt.validatedAt).toLocaleDateString()} by ${provider}`
-                              : 'Not validated yet'}
-                          </p>
+                        <div className="flex min-w-0 items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedInBulk}
+                            className="mt-1 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) => togglePromptSelection(prompt.id, event.target.checked)}
+                          />
+                          {promptImage ? (
+                            <img src={promptImage} alt="" className="mt-0.5 h-9 w-9 shrink-0 rounded-md border border-line/20 object-cover" />
+                          ) : (
+                            <div className="mt-0.5 h-9 w-9 shrink-0 rounded-md border border-line/20 bg-surface" />
+                          )}
+                          <div className="min-w-0">
+                            <h3 className="editorial-heading truncate text-[1.8rem] font-semibold leading-[1.05]">{prompt.title}</h3>
+                            <p className="text-xs text-muted">
+                              {prompt.validatedAt
+                                ? `Validated on ${new Date(prompt.validatedAt).toLocaleDateString()} by ${provider}`
+                                : 'Not validated yet'}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-1.5 text-muted">
                           {prompt.pinned && <Pin size={13} className="text-warning" />}
                           {prompt.favorite && <Heart size={13} className="text-danger" />}
                         </div>
                       </div>
-                      <p className="mt-2 text-xs text-text">{excerpt(prompt.content, 170)}</p>
+                      <p className="mt-2 text-xs text-text">{excerpt(stripMarkdownForCard(prompt.content), 170)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {visibleTags.map((tag) => (
                           <span
@@ -1773,7 +1812,7 @@ export function NeoApp({
 
       {promptMenu && contextPrompt && (
         <div
-          className="fixed z-[120] min-w-[220px] border border-line/30 bg-surface p-1 shadow-2xl"
+          className="fixed z-[120] min-w-[240px] border border-line/30 bg-surface p-1 shadow-2xl"
           style={{ left: promptMenu.x, top: promptMenu.y }}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -1782,77 +1821,84 @@ export function NeoApp({
             type="button"
             className={navSubRowClass(false)}
             onClick={() => {
+              togglePromptSelection(contextPrompt.id, !selectedPromptIdSet.has(contextPrompt.id))
+              setPromptMenu(null)
+            }}
+          >
+            {selectedPromptIdSet.has(contextPrompt.id) ? 'Remove from selection' : 'Add to selection'}
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              setSelectedPromptIds([contextPrompt.id])
               onSelectPromptId(contextPrompt.id)
-              setFocus(defaultFocus)
               setPromptMenu(null)
             }}
           >
-            Open
+            Select only this prompt
           </button>
           <button
             type="button"
             className={navSubRowClass(false)}
             onClick={() => {
-              onSelectPromptId(contextPrompt.id)
-              setFocus('edit')
+              setSelectedPromptIds(lanePrompts.map((prompt) => prompt.id))
               setPromptMenu(null)
             }}
           >
-            Edit
+            Select all in this view
           </button>
           <button
             type="button"
             className={navSubRowClass(false)}
             onClick={() => {
-              void onCopyPrompt(contextPrompt)
+              setSelectedPromptIds([])
               setPromptMenu(null)
             }}
           >
-            Copy
+            Clear selection
           </button>
-          <button
-            type="button"
-            className={navSubRowClass(false)}
-            onClick={() => {
-              onRefinePrompt(contextPrompt)
-              setPromptMenu(null)
-            }}
-          >
-            Improve
-          </button>
-          <button
-            type="button"
-            className={navSubRowClass(false)}
-            onClick={() => {
-              void onValidatePrompt(contextPrompt)
-              setPromptMenu(null)
-            }}
-          >
-            Validate Prompt
-          </button>
-          <button
-            type="button"
-            className={navSubRowClass(false)}
-            onClick={() => {
-              onSharePrompt(contextPrompt)
-              setPromptMenu(null)
-            }}
-          >
-            Share / Export
-          </button>
-          <button
-            type="button"
-            className={navSubRowClass(false)}
-            onClick={() => {
-              void onAddAsTemplate(contextPrompt)
-              setPromptMenu(null)
-            }}
-          >
-            Add as Template
-          </button>
-
           <div className="my-1 border-t border-line/20" />
-          <p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">Add To Tag Folder</p>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              void onSavePrompt(contextPrompt, {
+                title: contextPrompt.title,
+                content: contextPrompt.content,
+                category: contextPrompt.category,
+                tags: contextPrompt.tags,
+                folder: contextPrompt.folder ?? undefined,
+                useCase: contextPrompt.useCase,
+                aiTarget: contextPrompt.aiTarget,
+                favorite: !contextPrompt.favorite
+              })
+              setPromptMenu(null)
+            }}
+          >
+            {contextPrompt.favorite ? 'Remove favorite' : 'Add favorite'}
+          </button>
+          <button
+            type="button"
+            className={navSubRowClass(false)}
+            onClick={() => {
+              void onSavePrompt(contextPrompt, {
+                title: contextPrompt.title,
+                content: contextPrompt.content,
+                category: contextPrompt.category,
+                tags: contextPrompt.tags,
+                folder: contextPrompt.folder ?? undefined,
+                useCase: contextPrompt.useCase,
+                aiTarget: contextPrompt.aiTarget,
+                pinned: !contextPrompt.pinned
+              })
+              setPromptMenu(null)
+            }}
+          >
+            {contextPrompt.pinned ? 'Unpin prompt' : 'Pin prompt'}
+          </button>
+          <div className="my-1 border-t border-line/20" />
+          <p className="px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-muted">Move To Tag Folder</p>
           {folders.length === 0 ? (
             <p className="px-2 py-1 text-[11px] text-muted">No folders yet</p>
           ) : (
@@ -1870,6 +1916,18 @@ export function NeoApp({
               </button>
             ))
           )}
+
+          <div className="my-1 border-t border-line/20" />
+          <button
+            type="button"
+            className={`${navSubRowClass(false)} text-danger hover:text-danger`}
+            onClick={() => {
+              void onDeletePrompt(contextPrompt)
+              setPromptMenu(null)
+            }}
+          >
+            Delete prompt
+          </button>
         </div>
       )}
     </div>
@@ -2051,105 +2109,109 @@ function NeoFocusPanel({
         </div>
         <p className="text-xs text-muted">Added on {new Date(prompt.createdAt).toLocaleDateString()}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-line/10 pt-2">
-          <button
-            type="button"
-            className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs transition ${
-              focus === 'browse' ? 'border-accent/40 bg-accent/15 text-text' : 'border-line/20 bg-surface2 text-muted hover:text-text'
-            }`}
-            onClick={() => setFocus('browse')}
-            title="Summary"
-          >
-            <House size={14} />
-          </button>
-          <button
-            type="button"
-            className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs transition ${
-              focus === 'read' ? 'border-accent/40 bg-accent/15 text-text' : 'border-line/20 bg-surface2 text-muted hover:text-text'
-            }`}
-            onClick={() => setFocus('read')}
-            title="Read"
-          >
-            <Maximize2 size={14} />
-          </button>
-          <button
-            type="button"
-            className={`inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs transition ${
-              focus === 'edit' ? 'border-accent/40 bg-accent/15 text-text' : 'border-line/20 bg-surface2 text-muted hover:text-text'
-            }`}
-            onClick={() => setFocus('edit')}
-            title="Edit"
-          >
-            <PencilLine size={14} />
-          </button>
-          <div className="mx-1 h-5 w-px bg-line/30" />
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
-            onClick={() => onRefinePrompt(prompt)}
-            title="Improve"
-          >
-            <Sparkles size={14} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
-            disabled={isValidating}
-            onClick={() => void onValidatePrompt(prompt)}
-            title={isValidating ? 'Validating...' : 'Validate'}
-          >
-            <ShieldCheck size={14} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
-            onClick={() => void onCopyPrompt(prompt)}
-            title="Copy"
-          >
-            <Copy size={14} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
-            onClick={() => onSharePrompt(prompt)}
-            title="Share"
-          >
-            <Share2 size={14} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
-            onClick={async () => {
-              const issues = validatePromptForSave(form)
-              if (issues.length > 0) {
-                setValidationMessage(formatPromptValidationIssues(issues))
-                return
-              }
-              setValidationMessage(null)
-              await onAddAsTemplate({
-                ...prompt,
-                title: form.title.trim(),
-                content: form.content.trim(),
-                category: form.category.trim() || 'General',
-                tags: form.tags,
-                useCase: form.useCase.trim() || undefined,
-                aiTarget: form.aiTarget.trim() || undefined
-              })
-            }}
-            title="Add as Template"
-          >
-            <LayoutTemplate size={14} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-danger/25 bg-danger/10 px-2 text-xs text-danger transition hover:bg-danger/15"
-            onClick={() => void onDeletePrompt(prompt)}
-            title="Delete"
-          >
-            <Trash2 size={14} />
-          </button>
-          <div className="ml-auto inline-flex h-8 items-center rounded-md border border-line/20 bg-surface2 px-2 text-muted">
-            <EllipsisVertical size={14} />
-          </div>
+          {focus === 'browse' ? (
+            <>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => setFocus('read')}
+              >
+                <Maximize2 size={14} />
+                Read
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => setFocus('edit')}
+              >
+                <PencilLine size={14} />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => void onCopyPrompt(prompt)}
+              >
+                <Copy size={14} />
+                Copy
+              </button>
+            </>
+          ) : null}
+
+          {focus === 'read' ? (
+            <>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => onRefinePrompt(prompt)}
+              >
+                <Sparkles size={14} />
+                Improve
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text disabled:opacity-40"
+                disabled={isValidating}
+                onClick={() => void onValidatePrompt(prompt)}
+              >
+                <ShieldCheck size={14} />
+                {isValidating ? 'Validating...' : 'Validate'}
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => onSharePrompt(prompt)}
+              >
+                <Share2 size={14} />
+                Share
+              </button>
+            </>
+          ) : null}
+
+          {focus === 'edit' ? (
+            <>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={() => imageInputRef.current?.click()}
+              >
+                <FilePlus2 size={14} />
+                Add image
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-line/20 bg-surface2 px-2 text-xs text-muted transition hover:text-text"
+                onClick={async () => {
+                  const issues = validatePromptForSave(form)
+                  if (issues.length > 0) {
+                    setValidationMessage(formatPromptValidationIssues(issues))
+                    return
+                  }
+                  setValidationMessage(null)
+                  await onAddAsTemplate({
+                    ...prompt,
+                    title: form.title.trim(),
+                    content: form.content.trim(),
+                    category: form.category.trim() || 'General',
+                    tags: form.tags,
+                    useCase: form.useCase.trim() || undefined,
+                    aiTarget: form.aiTarget.trim() || undefined
+                  })
+                }}
+              >
+                <LayoutTemplate size={14} />
+                Add as Template
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-danger/25 bg-danger/10 px-2 text-xs text-danger transition hover:bg-danger/15"
+                onClick={() => void onDeletePrompt(prompt)}
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </>
+          ) : null}
         </div>
         <p className="mt-2 text-[11px] text-muted">
           Default open tab: {defaultPromptView === 'summary' ? 'Summary' : defaultPromptView === 'edit' ? 'Edit' : 'Read'}
